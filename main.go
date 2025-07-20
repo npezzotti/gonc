@@ -18,6 +18,7 @@ var (
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
+	exitOnEOF  = flag.Bool("exit-on-eof", true, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
 	nodns      = flag.Bool("no-dns", false, "do not resolve hostnames to IP addresses")
 	sourceIp   = flag.String("source", "", "the IP of the interface which is used to send the packets.")
 	sourcePort = flag.Uint("port", 0, "the source port nc should use, subject to privilege restrictions and availability.")
@@ -117,6 +118,7 @@ func generateConfig() (*Config, error) {
 	cfg.NoStdin = *nostdin
 	cfg.ScanPorts = *scan
 	cfg.KeepListening = *keepListening
+	cfg.ExitOnEOF = *exitOnEOF
 
 	if *hexDumpFile != "" {
 		cfg.HexFileOutput, err = NewHexFileOutput(*hexDumpFile, *append)
@@ -156,9 +158,8 @@ func run(l *log.Logger) error {
 	}
 
 	nc := &netcat{
-		cfg:      cfg,
-		log:      NewLogger(l, cfg),
-		shutdown: make(chan struct{}),
+		cfg: cfg,
+		log: NewLogger(l, cfg),
 	}
 
 	if nc.cfg.NetcatMode == NetcatModeListen {

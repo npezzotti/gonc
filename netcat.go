@@ -16,9 +16,8 @@ import (
 )
 
 type netcat struct {
-	cfg      *Config
-	log      *Logger
-	shutdown chan struct{}
+	cfg *Config
+	log *Logger
 }
 
 type HalfCloser interface {
@@ -100,55 +99,61 @@ func (n *netcat) connect() error {
 
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
-	if !n.cfg.NoStdin {
-		wg.Add(1)
-		go func() {
-			defer func() {
-				conn.(HalfCloser).CloseWrite()
-				n.log.Verbose("writer done")
-				wg.Done()
-			}()
-			stdin := make(chan []byte)
+	wg.Add(1)
+	go func() {
+		defer func() {
+			conn.(HalfCloser).CloseWrite()
+			n.log.Verbose("writer done")
+			wg.Done()
+		}()
+		stdin := make(chan []byte)
+		if !n.cfg.NoStdin {
 			go func() {
+				defer close(stdin)
+
 				buf := make([]byte, 1024)
 				for {
 					nb, err := os.Stdin.Read(buf)
 					if err != nil {
-						if err != io.EOF {
+						isEOF := errors.Is(err, io.EOF)
+						if !isEOF {
 							n.log.Log("read stdin: %s", err)
 						}
-						break
+
+						if isEOF && !n.cfg.ExitOnEOF {
+							continue
+						}
+						return
 					}
 					stdin <- buf[:nb]
 				}
-				close(stdin)
 			}()
+		}
 
-			for {
-				select {
-				case <-stop:
-					return // signal received, exit writer
-				case data, ok := <-stdin:
-					if !ok {
-						return // stdin closed, exit writer
-					}
-					if _, err := conn.Write(data); err != nil {
-						n.log.Log("write to conn: %s", err)
-						return
-					}
-					// Reset the deadline on each write
-					if n.cfg.Timeout > 0 {
-						conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-					}
+		for {
+			select {
+			case <-stop:
+				return // signal received, exit writer
+			case data, ok := <-stdin:
+				if !ok {
+					return // stdin closed, exit writer
+				}
+				if _, err := conn.Write(data); err != nil {
+					n.log.Log("write to conn: %s", err)
+					return
+				}
+				// Reset the deadline on each write
+				if n.cfg.Timeout > 0 {
+					conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	wg.Add(1)
 	go func() {
 		defer func() {
-			// close(stop)
+			close(stop) // signal the writer goroutine to stop
 			n.log.Verbose("reader done")
 			wg.Done()
 		}()
@@ -174,21 +179,7 @@ func (n *netcat) connect() error {
 		}
 	}()
 
-	doneChan := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(doneChan)
-	}()
-
-	fmt.Println("waiting for shutdown signal...")
-	select {
-	case <-n.shutdown:
-		conn.Close()
-		close(stop)
-		<-doneChan // wait for the goroutines to finish
-	case <-doneChan:
-	}
-
+	wg.Wait()
 	return nil
 }
 
@@ -240,13 +231,6 @@ func (n *netcat) listen() error {
 
 	n.log.Verbose("Listening on %s", listener.Addr().String())
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		close(n.shutdown) // signal shutdown
-	}()
-
 	return n.acceptConn(listener)
 }
 
@@ -279,18 +263,24 @@ func (n *netcat) handleConn(conn net.Conn) error {
 		if !n.cfg.NoStdin {
 			// Read from stdin in a separate goroutine
 			go func() {
+				defer close(stdin)
+
 				buf := make([]byte, 1024)
 				for {
 					nb, err := os.Stdin.Read(buf)
 					if err != nil {
-						if !errors.Is(err, io.EOF) {
+						isEOF := errors.Is(err, io.EOF)
+						if !isEOF {
 							n.log.Log("read stdin: %s", err)
 						}
-						break
+
+						if isEOF && !n.cfg.ExitOnEOF {
+							continue
+						}
+						return
 					}
 					stdin <- buf[:nb]
 				}
-				close(stdin)
 			}()
 		}
 
@@ -313,7 +303,7 @@ func (n *netcat) handleConn(conn net.Conn) error {
 	wg.Add(1)
 	go func() {
 		defer func() {
-			// close(stop)
+			close(stop)
 			n.log.Verbose("reader done")
 			wg.Done()
 		}()
@@ -339,67 +329,34 @@ func (n *netcat) handleConn(conn net.Conn) error {
 		}
 	}()
 
-	doneChan := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(doneChan)
-	}()
-
-	select {
-	case <-n.shutdown:
-		conn.Close()
-		// Signal the writer goroutine to stop (if running)
-		close(stop)
-		// Wait for both goroutines to finish
-		<-doneChan
-	case <-doneChan:
-	}
+	wg.Wait()
 
 	return nil
 }
 
 func (n *netcat) acceptConn(listener net.Listener) error {
 	for {
-		select {
-		case <-n.shutdown:
-			return nil
-		default:
-			errChan := make(chan error, 1)
-			connChan := make(chan net.Conn, 1)
-			go func() {
-				conn, err := listener.Accept()
-				if err != nil {
-					errChan <- fmt.Errorf("accept connection: %w", err)
-					return
-				}
-				connChan <- conn
-			}()
-
-			var conn net.Conn
-			select {
-			case <-n.shutdown:
-				return nil
-			case err := <-errChan:
-				return err
-			case conn = <-connChan:
-			}
-			defer conn.Close()
-
-			if n.cfg.Timeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-			}
-
-			setReceiveBuffer(conn, n.cfg.RecvBuf)
-			setSendBuffer(conn, n.cfg.SendBuf)
-
-			if err := n.handleConn(conn); err != nil {
-				n.log.Log("handle connection: %s", err)
-			}
-
-			if !n.cfg.KeepListening {
-				return nil // exit after handling one connection
-			}
+		conn, err := listener.Accept()
+		if err != nil {
+			return fmt.Errorf("accept connection: %w", err)
 		}
+		defer conn.Close()
+
+		if n.cfg.Timeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+		}
+
+		setReceiveBuffer(conn, n.cfg.RecvBuf)
+		setSendBuffer(conn, n.cfg.SendBuf)
+
+		if err := n.handleConn(conn); err != nil {
+			n.log.Log("handle connection: %s", err)
+		}
+
+		if !n.cfg.KeepListening {
+			return nil // exit after handling one connection
+		}
+
 	}
 }
 

@@ -42,6 +42,7 @@ type Config struct {
 	HexFileOutput  *HexFileOutput
 	ScanPorts      bool
 	KeepListening  bool
+	ExitOnEOF      bool
 	StartPort      uint16
 	EndPort        uint16
 	SourcePort     uint16
