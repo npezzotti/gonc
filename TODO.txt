@@ -1,2 +1,4 @@
 -i interval 
   Sleep for interval seconds between lines of text sent and received.  Also causes a delay time between connections to multiple ports.
+-W recvlimit
+  Terminate after receiving recvlimit packets from the network.

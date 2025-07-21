@@ -10,27 +10,27 @@ import (
 )
 
 var (
-	listen        = flag.Bool("listen", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
-	udp           = flag.Bool("udp", false, "use UDP instead of the default option of TCP.")
-	unix          = flag.Bool("unix", false, "use Unix Domain Sockets")
-	nostdin       = flag.Bool("no-stdin", false, "do not attempt to read from stdin")
+	listen        = flag.Bool("l", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
+	udp           = flag.Bool("u", false, "use UDP instead of the default option of TCP.")
+	unix          = flag.Bool("U", false, "use Unix Domain Sockets")
+	nostdin       = flag.Bool("d", false, "do not attempt to read from stdin")
 	ipv4_only     = flag.Bool("4", false, "use IPv4 addresses only")
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
-	exitOnEOF  = flag.Bool("exit-on-eof", true, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
-	nodns      = flag.Bool("no-dns", false, "do not resolve hostnames to IP addresses")
-	sourceIp   = flag.String("source", "", "the IP of the interface which is used to send the packets.")
-	sourcePort = flag.Uint("port", 0, "the source port nc should use, subject to privilege restrictions and availability.")
-	timeout    = flag.String("timeout", "0ms", "connections which cannot be established or are idle timeout "+
+	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
+	nodns      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
+	sourceAddr = flag.String("s", "", "the IP of the interface which is used to send the packets.")
+	sourcePort = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
+	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
 		"after timeout seconds. Has no effect on the -listen option, i.e. nc will listen forever for a connection, "+
-		"with or without the -timeout flag.")
+		"with or without the -w flag.")
 	hexDumpFile = flag.String("hex-dump", "", "output file")
 	append      = flag.Bool("append-output", false, "append to output file")
-	scan        = flag.Bool("scan", false, "scan for listening daemons, without sending any data to them.")
-	recvBuf     = flag.Int("recv-buf", 0, "Specify the size of the TCP receive buffer.")
-	sendBuf     = flag.Int("send-buf", 0, "specify the size of the TCP send buffer.")
-	verbose     = flag.Bool("verbose", false, "enable more verbose output.")
+	scan        = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
+	recvBuf     = flag.Int("I", 0, "Specify the size of the TCP receive buffer.")
+	sendBuf     = flag.Int("O", 0, "specify the size of the TCP send buffer.")
+	verbose     = flag.Bool("v", false, "enable more verbose output.")
 )
 
 func generateConfig() (*Config, error) {
@@ -109,7 +109,7 @@ func generateConfig() (*Config, error) {
 	}
 
 	cfg.SourcePort = uint16(*sourcePort)
-	cfg.SourceHost = *sourceIp
+	cfg.SourceHost = *sourceAddr
 	cfg.NoDNS = *nodns
 
 	cfg.RecvBuf = *recvBuf
@@ -143,14 +143,14 @@ func parseSocketFlags(udp, unix bool) Socket {
 }
 
 func main() {
-	l := log.New(os.Stderr, "", 0)
-
-	if err := run(l); err != nil {
-		l.Fatal(err)
+	if err := run(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
 
-func run(l *log.Logger) error {
+func run() error {
+	l := log.New(os.Stdout, "", log.LstdFlags)
 	flag.Parse()
 	cfg, err := generateConfig()
 	if err != nil {
@@ -163,8 +163,8 @@ func run(l *log.Logger) error {
 	}
 
 	if nc.cfg.NetcatMode == NetcatModeListen {
-		return nc.listen()
+		return nc.runListen()
 	}
 
-	return nc.connect()
+	return nc.runConnect()
 }

@@ -5,11 +5,11 @@ import (
 	"net"
 )
 
-type DatagramListener struct {
+type UDPListener struct {
 	conn net.Conn
 }
 
-func NewDatagramListener(protocol, laddr string) (*DatagramListener, error) {
+func NewUDPListener(protocol, laddr string) (*UDPListener, error) {
 	var conn net.Conn
 	switch protocol {
 	case "udp", "udp4", "udp6":
@@ -33,21 +33,21 @@ func NewDatagramListener(protocol, laddr string) (*DatagramListener, error) {
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}
-	return &DatagramListener{conn: conn}, nil
+	return &UDPListener{conn: conn}, nil
 }
 
-func (l *DatagramListener) Accept() (net.Conn, error) {
+func (l *UDPListener) Accept() (net.Conn, error) {
 	return l.conn, nil
 }
 
-func (l *DatagramListener) Close() error {
+func (l *UDPListener) Close() error {
 	if l.conn != nil {
 		return l.conn.Close()
 	}
 	return nil
 }
 
-func (l *DatagramListener) Addr() net.Addr {
+func (l *UDPListener) Addr() net.Addr {
 	if l.conn != nil {
 		return l.conn.LocalAddr()
 	}
