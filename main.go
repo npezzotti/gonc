@@ -18,13 +18,14 @@ var (
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
-	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
-	nodns      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
-	sourceAddr = flag.String("s", "", "the IP of the interface which is used to send the packets.")
-	sourcePort = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
-	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
+	exitOnEOF      = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
+	nodns          = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
+	sourceAddr     = flag.String("s", "", "the IP of the interface which is used to send the packets.")
+	sourcePort     = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
+	connectTimeout = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
 		"after timeout seconds. Has no effect on the -listen option, i.e. nc will listen forever for a connection, "+
 		"with or without the -w flag.")
+	idleTimeout = flag.String("i", "0s", "idle timeout for the connection, after which it will be closed.")
 	hexDumpFile = flag.String("hex-dump", "", "output file")
 	append      = flag.Bool("append-output", false, "append to output file")
 	scan        = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
@@ -50,13 +51,18 @@ func generateConfig() (*Config, error) {
 		cfg.ProtocolConfig.IPType = IPv4v6
 	}
 
-	timeout, err := time.ParseDuration(*timeout)
+	ct, err := time.ParseDuration(*connectTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
 	}
 
-	cfg.ConnTimeout = timeout
-	cfg.Timeout = timeout
+	it, err := time.ParseDuration(*idleTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
+	}
+
+	cfg.ConnectTimeout = ct
+	cfg.IdleTimeout = it
 
 	switch cfg.NetcatMode {
 	case NetcatModeConnect:
@@ -150,7 +156,7 @@ func main() {
 }
 
 func run() error {
-	l := log.New(os.Stdout, "", log.LstdFlags)
+	l := log.New(os.Stdout, "gonc: ", 0)
 	flag.Parse()
 	cfg, err := generateConfig()
 	if err != nil {
@@ -162,9 +168,16 @@ func run() error {
 		log: NewLogger(l, cfg),
 	}
 
-	if nc.cfg.NetcatMode == NetcatModeListen {
-		return nc.runListen()
+	network := nc.cfg.ProtocolConfig.Network()
+
+	addr, err := nc.cfg.ParseAddress()
+	if err != nil {
+		return fmt.Errorf("parse address: %w", err)
 	}
 
-	return nc.runConnect()
+	if nc.cfg.NetcatMode == NetcatModeListen {
+		return nc.runListen(network, addr)
+	}
+
+	return nc.runConnect(network, addr)
 }

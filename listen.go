@@ -6,161 +6,152 @@ import (
 	"io"
 	"net"
 	"os"
-	"sync"
 	"time"
 )
 
-func (n *netcat) runListen() error {
-	var (
-		err      error
-		listener net.Listener
-	)
-
-	localAddr, err := n.cfg.ParseAddress()
+func (n *netcat) runListen(network, laddr string) error {
+	listener, err := n.createListener(network, laddr)
 	if err != nil {
-		return fmt.Errorf("get address: %w", err)
-	}
-	switch n.cfg.ProtocolConfig.Network() {
-	case "udp", "udp4", "udp6", "unixgram":
-		listener, err = NewUDPListener(n.cfg.ProtocolConfig.Network(), localAddr)
-		if err != nil {
-			return fmt.Errorf("create datagram listener: %w", err)
-		}
-	case "tcp", "tcp4", "tcp6", "unix":
-		listener, err = net.Listen(n.cfg.ProtocolConfig.Network(), localAddr)
-		if err != nil {
-			return fmt.Errorf("listen: %w", err)
-		}
+		return fmt.Errorf("createListener: %w", err)
 	}
 	defer listener.Close()
 
-	n.log.Verbose("Listening on %s", listener.Addr().String())
+	if n.cfg.ProtocolConfig.Socket.IsPacket() {
+		return n.acceptUDP(listener)
+	}
 
-	return n.acceptConn(listener)
+	if n.cfg.KeepListening {
+		return n.acceptForever(listener)
+	}
+	return n.accept(listener)
 }
 
-func (n *netcat) acceptConn(listener net.Listener) error {
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return fmt.Errorf("accept connection: %w", err)
-		}
-		defer conn.Close()
-
-		if n.cfg.Timeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-		}
-
-		setReceiveBuffer(conn, n.cfg.RecvBuf)
-		setSendBuffer(conn, n.cfg.SendBuf)
-
-		if err := n.handleConn(conn); err != nil {
-			n.log.Log("handle connection: %s", err)
-		}
-
-		if !n.cfg.KeepListening {
-			return nil // exit after handling one connection
-		}
-
+func (n *netcat) acceptUDP(listener net.Listener) error {
+	conn, err := n.acceptConn(listener)
+	if err != nil {
+		return fmt.Errorf("acceptConn: %w", err)
 	}
+	defer conn.Close()
+
+	return n.copyPackets(conn.(net.PacketConn))
 }
 
-func (n *netcat) handleConn(conn net.Conn) error {
-	network := n.cfg.ProtocolConfig.Network()
-	if network == "udp" ||
-		network == "udp4" ||
-		network == "udp6" ||
-		network == "unixgram" {
-		return copyPackets(conn.(net.PacketConn), true)
+func (n *netcat) accept(listener net.Listener) error {
+	conn, err := n.acceptConn(listener)
+	if err != nil {
+		return fmt.Errorf("acceptConn: %w", err)
 	}
+	defer conn.Close()
 
 	addr := conn.RemoteAddr().String()
 	if addr == "" {
+		// Unix socket connections may not have a remote address
 		addr = conn.LocalAddr().String()
 	}
-	n.log.Verbose("Connection received on %s\n", addr)
+	n.log.Verbose("Connection received on %s", addr)
 
-	var wg sync.WaitGroup
-	stop := make(chan struct{})
-	wg.Add(1)
-	go func() {
-		defer func() {
-			conn.(HalfCloser).CloseWrite()
-			n.log.Verbose("writer done")
-			wg.Done()
-		}()
+	return n.handleConn(conn)
+}
 
-		stdin := make(chan []byte)
-		if !n.cfg.NoStdin {
-			// Read from stdin in a separate goroutine
-			go func() {
-				defer close(stdin)
-
-				buf := make([]byte, 1024)
-				for {
-					nb, err := os.Stdin.Read(buf)
-					if err != nil {
-						isEOF := errors.Is(err, io.EOF)
-						if !isEOF {
-							n.log.Log("read stdin: %s", err)
-						}
-
-						if isEOF && !n.cfg.ExitOnEOF {
-							continue
-						}
-						return
-					}
-					stdin <- buf[:nb]
-				}
-			}()
+func (n *netcat) acceptForever(listener net.Listener) error {
+	for {
+		if err := n.accept(listener); err != nil {
+			return fmt.Errorf("listen: %w", err)
 		}
+	}
+}
 
-		for {
-			select {
-			case <-stop:
-				return // signal received, exit writer
-			case data, ok := <-stdin:
-				if !ok {
-					return // stdin closed, exit writer
-				}
-				if _, err := conn.Write(data); err != nil {
-					n.log.Log("write to conn: %s", err)
-					return
-				}
-			}
+func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
+	var (
+		listener net.Listener
+		err      error
+	)
+
+	switch network {
+	case "udp", "udp4", "udp6", "unixgram":
+		listener, err = NewUDPListener(network, laddr)
+		if err != nil {
+			return nil, fmt.Errorf("create datagram listener: %w", err)
 		}
-	}()
+	case "tcp", "tcp4", "tcp6", "unix":
+		listener, err = net.Listen(network, laddr)
+		if err != nil {
+			return nil, fmt.Errorf("listen: %w", err)
+		}
+	}
 
-	wg.Add(1)
+	n.log.Verbose("Listening on %s", listener.Addr().String())
+
+	return listener, nil
+}
+
+// acceptConn accepts a new connection from the listener.
+// It sets the read and write buffers according to the configuration.
+func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return nil, fmt.Errorf("accept connection: %w", err)
+	}
+
+	setReadBuffer(conn, n.cfg.RecvBuf)
+	setWriteBuffer(conn, n.cfg.SendBuf)
+
+	return conn, nil
+}
+
+func (n *netcat) handleConn(conn net.Conn) error {
+	writeErrChan := make(chan error)
 	go func() {
-		defer func() {
-			close(stop)
-			n.log.Verbose("reader done")
-			wg.Done()
-		}()
-
+		var writeErr error
+		buf := make([]byte, 1024)
 		for {
-			buf := make([]byte, 1024)
-			nb, err := conn.Read(buf)
+			nr, err := os.Stdin.Read(buf)
 			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					n.log.Log("read conn: %s", err)
+				if errors.Is(err, io.EOF) {
+					writeErr = conn.(HalfCloser).CloseWrite()
+				} else {
+					writeErr = err
 				}
-				return
+				break
 			}
 
-			if _, err := os.Stdout.Write(buf[:nb]); err != nil {
-				n.log.Log("write stdout: %s", err)
-				return
+			if _, err := conn.Write(buf[:nr]); err != nil {
+				writeErr = err
+				break
 			}
 
-			if n.cfg.Timeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+			if n.cfg.IdleTimeout > 0 {
+				conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
 			}
 		}
+		writeErrChan <- writeErr
 	}()
 
-	wg.Wait()
+	var readErr error
+	buf := make([]byte, 1024)
+	for {
+		nr, err := conn.Read(buf)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				readErr = err
+				break
+			}
+			return nil // EOF is expected when the connection is closed by the other side
+		}
 
-	return nil
+		if n.cfg.IdleTimeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		}
+
+		if _, err := os.Stdout.Write(buf[:nr]); err != nil {
+			readErr = err
+			break
+		}
+	}
+
+	if readErr != nil {
+		return readErr
+	}
+
+	return <-writeErrChan
 }

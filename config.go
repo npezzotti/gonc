@@ -17,6 +17,10 @@ const (
 
 type Socket string
 
+func (s Socket) IsPacket() bool {
+	return s == SocketUDP || s == SocketUnixgram
+}
+
 const (
 	SocketTCP      Socket = "tcp"
 	SocketUnix     Socket = "unix"
@@ -36,8 +40,8 @@ type Config struct {
 	Port           uint16
 	ProtocolConfig ProtocolConfig
 	NoStdin        bool
-	ConnTimeout    time.Duration
-	Timeout        time.Duration
+	ConnectTimeout time.Duration
+	IdleTimeout    time.Duration
 	NoDNS          bool
 	HexFileOutput  *HexFileOutput
 	ScanPorts      bool

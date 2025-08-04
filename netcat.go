@@ -4,12 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
+	"time"
 )
 
 type netcat struct {
@@ -22,130 +19,95 @@ type HalfCloser interface {
 	CloseWrite() error
 }
 
-func copyPackets(conn net.PacketConn, listen bool) error {
-	var wg sync.WaitGroup
-	var remoteAddr net.Addr
-	var err error
-	var n int
+func (n *netcat) copyPackets(conn net.PacketConn) error {
+	var (
+		remoteAddr net.Addr
+		err        error
+		nb         int
+		connBuff   = make([]byte, 1024)
+	)
 
-	if listen {
-		buf := make([]byte, 1024)
-		n, remoteAddr, err = conn.ReadFrom(buf)
+	if n.cfg.NetcatMode == NetcatModeListen {
+		nb, remoteAddr, err = conn.ReadFrom(connBuff)
 		if err != nil {
-			return fmt.Errorf("read from conn: %w", err)
+			return fmt.Errorf("read from: %w", err)
 		}
 
-		log.Printf("Receiving packets from %s\n", remoteAddr.String())
-
-		if _, err := os.Stdout.Write(buf[:n]); err != nil {
-			log.Printf("write stdout: %s\n", err)
-			return err
+		if n.cfg.IdleTimeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
 		}
+
+		n.log.Printf("Receiving packets from %s", remoteAddr.String())
 	}
 
-	stop := make(chan struct{})
-	wg.Add(1)
+	var writeErrChan = make(chan error, 1)
 	go func() {
-		defer func() {
-			conn.Close() // Close the connection to signal the reader goroutine to stop.
-			wg.Done()
-		}()
+		defer conn.Close()
 
-		stdin := make(chan []byte)
-		go func() {
-			buf := make([]byte, 1024)
-			for {
-				n, err := os.Stdin.Read(buf)
-				if err != nil {
-					if err != io.EOF {
-						log.Printf("read stdin: %s\n", err)
-					}
+		var writeErr error
+		stdinBuf := make([]byte, 1024)
+		for {
+			nb, err := os.Stdin.Read(stdinBuf)
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					writeErr = fmt.Errorf("read stdin: %w", err)
+				}
+				break
+			}
+
+			if n.cfg.NetcatMode == NetcatModeListen {
+				// If in listen mode, write to the remote address
+				if _, err = conn.WriteTo(stdinBuf[:nb], remoteAddr); err != nil {
+					writeErr = fmt.Errorf("write to: %w", err)
 					break
 				}
-				stdin <- buf[:n]
+			} else {
+				// Otherwise, write to the connection directly
+				if _, err = conn.(net.Conn).Write(stdinBuf[:nb]); err != nil {
+					writeErr = fmt.Errorf("write: %w", err)
+					break
+				}
 			}
-			close(stdin)
-		}()
 
-		for {
-			select {
-			case data, ok := <-stdin:
-				if !ok {
-					return
-				}
-				if listen {
-					if _, err = conn.WriteTo(data, remoteAddr); err != nil {
-						if !errors.Is(err, net.ErrClosed) {
-							log.Printf("write to: %s", err)
-						}
-						return
-					}
-				} else {
-					_, err = conn.(net.Conn).Write(data)
-					if err != nil {
-						log.Printf("write: %s", err)
-						return
-					}
-				}
-			case <-stop:
-				return
+			if n.cfg.IdleTimeout > 0 {
+				conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
 			}
 		}
+
+		writeErrChan <- writeErr
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer func() {
-			wg.Done()
-		}()
-
-		buf := make([]byte, 1024)
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				n, clientAddr, err := conn.ReadFrom(buf)
-				if err != nil {
-					if !errors.Is(err, net.ErrClosed) {
-						log.Printf("read from conn: %s", err)
-					}
-					return
-				}
-
-				if listen && clientAddr.String() != remoteAddr.String() {
-					// drop packets from other clients
-					continue
-				}
-
-				if _, err := os.Stdout.Write(buf[:n]); err != nil {
-					log.Printf("write stdout: %s", err)
-					return
-				}
+	for {
+		if nb > 0 {
+			if _, err := os.Stdout.Write(connBuff[:nb]); err != nil {
+				return fmt.Errorf("write stdout: %w", err)
 			}
 		}
-	}()
 
-	doneChan := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(doneChan) // Close the channel to signal that all goroutines are done.
-	}()
+		var clientAddr net.Addr
+		nb, clientAddr, err = conn.ReadFrom(connBuff)
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				return fmt.Errorf("read from: %w", err)
+			}
+			break
+		}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		if n.cfg.IdleTimeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		}
 
-	select {
-	case <-sigChan:
-		close(stop) // signal the writer goroutine to stop
-		<-doneChan  // wait for the goroutines to finish
-	case <-doneChan:
+		if n.cfg.NetcatMode == NetcatModeListen && clientAddr.String() != remoteAddr.String() {
+			// drop packets from other clients
+			nb = 0
+			continue
+		}
 	}
 
-	return nil
+	return <-writeErrChan
 }
 
-func setSendBuffer(conn net.Conn, size int) error {
+func setWriteBuffer(conn net.Conn, size int) error {
 	if size > 0 {
 		switch c := conn.(type) {
 		case *net.UDPConn:
@@ -161,7 +123,7 @@ func setSendBuffer(conn net.Conn, size int) error {
 	return nil
 }
 
-func setReceiveBuffer(conn net.Conn, size int) error {
+func setReadBuffer(conn net.Conn, size int) error {
 	if size > 0 {
 		switch c := conn.(type) {
 		case *net.UDPConn:
