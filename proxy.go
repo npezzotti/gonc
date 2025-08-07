@@ -16,6 +16,14 @@ func init() {
 	proxy.RegisterDialerType("http", httpDialerFactory)
 }
 
+type ProxyType string
+
+const (
+	ProxyTypeHTTP   ProxyType = "connect"
+	ProxyTypeSOCKS4 ProxyType = "4"
+	ProxyTypeSOCKS5 ProxyType = "5"
+)
+
 type httpDialer struct {
 	proxyUrl *url.URL
 	auth     string
@@ -78,7 +86,7 @@ func (d *httpDialer) Dial(network, addr string) (net.Conn, error) {
 
 func (n *netcat) dialProxy(network, remoteAddr string) (net.Conn, error) {
 	switch n.cfg.ProxyType {
-	case "connect":
+	case ProxyTypeHTTP:
 		var proxyAuth string
 		if n.cfg.ProxyAuth != "" {
 			proxyAuth = n.cfg.ProxyAuth + "@"
@@ -95,7 +103,7 @@ func (n *netcat) dialProxy(network, remoteAddr string) (net.Conn, error) {
 		}
 
 		return dialer.Dial(network, remoteAddr)
-	case "5":
+	case ProxyTypeSOCKS5:
 		var auth *proxy.Auth
 		if n.cfg.ProxyAuth != "" {
 			authParts := strings.SplitN(n.cfg.ProxyAuth, ":", 2)
@@ -114,7 +122,7 @@ func (n *netcat) dialProxy(network, remoteAddr string) (net.Conn, error) {
 		}
 
 		return dialer.Dial(network, remoteAddr)
-	case "4":
+	case ProxyTypeSOCKS4:
 		return nil, fmt.Errorf("SOCKS4 proxy is not supported")
 	default:
 		return nil, fmt.Errorf("unsupported proxy type: %s", n.cfg.ProxyType)

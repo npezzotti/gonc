@@ -63,7 +63,7 @@ type Config struct {
 	SSLAlpn      []string
 
 	ProxyAddr string
-	ProxyType string
+	ProxyType ProxyType
 	ProxyAuth string
 }
 

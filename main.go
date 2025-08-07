@@ -125,7 +125,7 @@ func generateConfig() (*Config, error) {
 	cfg.SSLTrustFile = *sslTrustFile
 
 	cfg.ProxyAddr = *proxyAddr
-	cfg.ProxyType = *proxyType
+	cfg.ProxyType = ProxyType(*proxyType)
 	cfg.ProxyAuth = *proxyAuth
 
 	alpn := strings.Split(*sslAlpn, ",")
