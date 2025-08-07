@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ func (n *netcat) runListen(network, laddr string) error {
 		return fmt.Errorf("createListener: %w", err)
 	}
 	defer listener.Close()
+
+	n.log.Verbose("Listening on %s", listener.Addr().String())
 
 	if n.cfg.ProtocolConfig.Socket.IsPacket() {
 		return n.acceptUDP(listener)
@@ -62,27 +65,28 @@ func (n *netcat) acceptForever(listener net.Listener) error {
 }
 
 func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
-	var (
-		listener net.Listener
-		err      error
-	)
+	switch n.cfg.ProtocolConfig.Socket {
+	case SocketUDP, SocketUnixgram:
+		return NewUDPListener(network, laddr)
+	case SocketTCP:
+		if n.cfg.UseSSL {
+			cert, err := tls.LoadX509KeyPair(n.cfg.SSLCert, n.cfg.SSLKey)
+			if err != nil {
+				return nil, fmt.Errorf("LoadX509KeyPair: %w", err)
+			}
 
-	switch network {
-	case "udp", "udp4", "udp6", "unixgram":
-		listener, err = NewUDPListener(network, laddr)
-		if err != nil {
-			return nil, fmt.Errorf("create datagram listener: %w", err)
+			return tls.Listen(network, laddr, &tls.Config{
+				InsecureSkipVerify: !n.cfg.SSLVerify,
+				CipherSuites:       n.cfg.SSLCiphers,
+				Certificates:       []tls.Certificate{cert},
+			})
 		}
-	case "tcp", "tcp4", "tcp6", "unix":
-		listener, err = net.Listen(network, laddr)
-		if err != nil {
-			return nil, fmt.Errorf("listen: %w", err)
-		}
+		return net.Listen(network, laddr)
+	case SocketUnix:
+		return net.Listen(network, laddr)
+	default:
+		return nil, fmt.Errorf("unsupported socket type: %v", n.cfg.ProtocolConfig.Socket)
 	}
-
-	n.log.Verbose("Listening on %s", listener.Addr().String())
-
-	return listener, nil
 }
 
 // acceptConn accepts a new connection from the listener.
@@ -96,6 +100,10 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 	setReadBuffer(conn, n.cfg.RecvBuf)
 	setWriteBuffer(conn, n.cfg.SendBuf)
 
+	if n.cfg.Timeout > 0 {
+		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+	}
+
 	return conn, nil
 }
 
@@ -108,7 +116,11 @@ func (n *netcat) handleConn(conn net.Conn) error {
 			nr, err := os.Stdin.Read(buf)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					writeErr = conn.(HalfCloser).CloseWrite()
+					if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
+						writeErr = c.CloseWrite()
+					} else {
+						writeErr = conn.(HalfCloser).CloseWrite()
+					}
 				} else {
 					writeErr = err
 				}
@@ -120,8 +132,8 @@ func (n *netcat) handleConn(conn net.Conn) error {
 				break
 			}
 
-			if n.cfg.IdleTimeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+			if n.cfg.Timeout > 0 {
+				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 			}
 		}
 		writeErrChan <- writeErr
@@ -139,8 +151,8 @@ func (n *netcat) handleConn(conn net.Conn) error {
 			return nil // EOF is expected when the connection is closed by the other side
 		}
 
-		if n.cfg.IdleTimeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		if n.cfg.Timeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 
 		if _, err := os.Stdout.Write(buf[:nr]); err != nil {

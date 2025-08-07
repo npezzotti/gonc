@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -61,7 +63,11 @@ func (n *netcat) connect(network, remoteAddr string) error {
 			nr, err := os.Stdin.Read(buf)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					writeErr = conn.(HalfCloser).CloseWrite()
+					if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
+						writeErr = c.CloseWrite()
+					} else {
+						writeErr = conn.(HalfCloser).CloseWrite()
+					}
 				} else {
 					writeErr = err
 				}
@@ -73,8 +79,8 @@ func (n *netcat) connect(network, remoteAddr string) error {
 				break
 			}
 
-			if n.cfg.IdleTimeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+			if n.cfg.Timeout > 0 {
+				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 			}
 		}
 		writeErrChan <- writeErr
@@ -94,8 +100,8 @@ func (n *netcat) connect(network, remoteAddr string) error {
 			return err
 		}
 
-		if n.cfg.IdleTimeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		if n.cfg.Timeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 	}
 
@@ -103,6 +109,11 @@ func (n *netcat) connect(network, remoteAddr string) error {
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
+	if n.cfg.ProxyAddr != "" {
+		// If a proxy is configured, use it
+		return n.dialProxy(network, remoteAddr)
+	}
+
 	var dialer net.Dialer
 	var err error
 
@@ -129,13 +140,43 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 		}
 	}
 
-	if n.cfg.ConnectTimeout > 0 {
-		dialer.Timeout = n.cfg.ConnectTimeout
+	if n.cfg.Timeout > 0 {
+		dialer.Timeout = n.cfg.Timeout
 	}
 
-	conn, err := dialer.Dial(network, remoteAddr)
-	if err != nil {
-		return nil, err
+	var conn net.Conn
+	if n.cfg.UseSSL {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: !n.cfg.SSLVerify,
+			CipherSuites:       n.cfg.SSLCiphers,
+			ServerName:         n.cfg.ServerName,
+		}
+
+		if n.cfg.SSLAlpn != nil {
+			tlsConfig.NextProtos = n.cfg.SSLAlpn
+		}
+
+		if n.cfg.SSLTrustFile != "" {
+			certPool := x509.NewCertPool()
+			certData, err := os.ReadFile(n.cfg.SSLTrustFile)
+			if err != nil {
+				return nil, fmt.Errorf("read SSL trust file: %w", err)
+			}
+			if !certPool.AppendCertsFromPEM(certData) {
+				return nil, fmt.Errorf("append certs from PEM: %w", err)
+			}
+			tlsConfig.RootCAs = certPool
+		}
+
+		conn, err = tls.DialWithDialer(&dialer, network, remoteAddr, tlsConfig)
+		if err != nil {
+			return nil, fmt.Errorf("dial with SSL: %w", err)
+		}
+	} else {
+		conn, err = dialer.Dial(network, remoteAddr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	setReadBuffer(conn, n.cfg.RecvBuf)

@@ -33,8 +33,8 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 			return fmt.Errorf("read from: %w", err)
 		}
 
-		if n.cfg.IdleTimeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		if n.cfg.Timeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 
 		n.log.Printf("Receiving packets from %s", remoteAddr.String())
@@ -69,8 +69,8 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 				}
 			}
 
-			if n.cfg.IdleTimeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+			if n.cfg.Timeout > 0 {
+				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 			}
 		}
 
@@ -93,8 +93,8 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 			break
 		}
 
-		if n.cfg.IdleTimeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.IdleTimeout))
+		if n.cfg.Timeout > 0 {
+			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 
 		if n.cfg.NetcatMode == NetcatModeListen && clientAddr.String() != remoteAddr.String() {

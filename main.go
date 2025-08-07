@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,20 +19,29 @@ var (
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
-	exitOnEOF      = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
-	nodns          = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
-	sourceAddr     = flag.String("s", "", "the IP of the interface which is used to send the packets.")
-	sourcePort     = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
-	connectTimeout = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
+	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
+	nodns      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
+	sourceAddr = flag.String("s", "", "the IP of the interface which is used to send the packets.")
+	sourcePort = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
+	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
 		"after timeout seconds. Has no effect on the -listen option, i.e. nc will listen forever for a connection, "+
 		"with or without the -w flag.")
-	idleTimeout = flag.String("i", "0s", "idle timeout for the connection, after which it will be closed.")
-	hexDumpFile = flag.String("hex-dump", "", "output file")
-	append      = flag.Bool("append-output", false, "append to output file")
-	scan        = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
-	recvBuf     = flag.Int("I", 0, "Specify the size of the TCP receive buffer.")
-	sendBuf     = flag.Int("O", 0, "specify the size of the TCP send buffer.")
-	verbose     = flag.Bool("v", false, "enable more verbose output.")
+	scan          = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
+	recvBuf       = flag.Int("I", 0, "Specify the size of the TCP receive buffer.")
+	sendBuf       = flag.Int("O", 0, "specify the size of the TCP send buffer.")
+	verbose       = flag.Bool("v", false, "enable more verbose output.")
+	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
+	sslVerify     = flag.Bool("ssl-verify", false, "Verify trust and domain name of certificates")
+	sslCert       = flag.String("ssl-cert", "", "Specify SSL certificate file (PEM) for listening")
+	sslKey        = flag.String("ssl-key", "", "Specify SSL private key (PEM) for listening")
+	sslTrustFile  = flag.String("ssl-trustfile", "", "PEM file containing trusted SSL certificates")
+	sslCiphers    = flag.String("ssl-ciphers", "", "Comma-separated list of SSL cipher suites")
+	sslServerName = flag.String("ssl-servername", "", "Request distinct server name (SNI)")
+	sslAlpn       = flag.String("ssl-alpn", "", "Comma-separated list of ALPN protocols to use")
+
+	proxyAddr = flag.String("proxy", "", "Specify address of host to proxy through.")
+	proxyType = flag.String("proxy-type", "http", "Specify type of proxy to use (http, socks5, etc.).")
+	proxyAuth = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 )
 
 func generateConfig() (*Config, error) {
@@ -51,18 +61,11 @@ func generateConfig() (*Config, error) {
 		cfg.ProtocolConfig.IPType = IPv4v6
 	}
 
-	ct, err := time.ParseDuration(*connectTimeout)
+	var err error
+	cfg.Timeout, err = time.ParseDuration(*timeout)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
 	}
-
-	it, err := time.ParseDuration(*idleTimeout)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
-	}
-
-	cfg.ConnectTimeout = ct
-	cfg.IdleTimeout = it
 
 	switch cfg.NetcatMode {
 	case NetcatModeConnect:
@@ -114,6 +117,39 @@ func generateConfig() (*Config, error) {
 		}
 	}
 
+	// SSL configuration
+	cfg.UseSSL = *ssl
+	cfg.SSLVerify = *sslVerify
+	cfg.SSLCert = *sslCert
+	cfg.SSLKey = *sslKey
+	cfg.SSLTrustFile = *sslTrustFile
+
+	cfg.ProxyAddr = *proxyAddr
+	cfg.ProxyType = *proxyType
+	cfg.ProxyAuth = *proxyAuth
+
+	alpn := strings.Split(*sslAlpn, ",")
+	alpnList := make([]string, 0, len(alpn))
+	for _, proto := range alpn {
+		proto = strings.TrimSpace(proto)
+		if proto != "" {
+			alpnList = append(alpnList, proto)
+		}
+	}
+	if len(alpnList) > 0 {
+		cfg.SSLAlpn = alpnList
+	}
+
+	cfg.ServerName = cfg.Host // Default to the host for server name verification
+	if *sslServerName != "" {
+		cfg.ServerName = *sslServerName
+	}
+
+	cfg.SSLCiphers, err = parseCipherSuite(*sslCiphers)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSL ciphers: %w", err)
+	}
+
 	cfg.SourcePort = uint16(*sourcePort)
 	cfg.SourceHost = *sourceAddr
 	cfg.NoDNS = *nodns
@@ -125,13 +161,6 @@ func generateConfig() (*Config, error) {
 	cfg.ScanPorts = *scan
 	cfg.KeepListening = *keepListening
 	cfg.ExitOnEOF = *exitOnEOF
-
-	if *hexDumpFile != "" {
-		cfg.HexFileOutput, err = NewHexFileOutput(*hexDumpFile, *append)
-		if err != nil {
-			return nil, err
-		}
-	}
 	cfg.Verbose = *verbose
 
 	return cfg, nil

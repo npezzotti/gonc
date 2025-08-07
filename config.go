@@ -40,10 +40,8 @@ type Config struct {
 	Port           uint16
 	ProtocolConfig ProtocolConfig
 	NoStdin        bool
-	ConnectTimeout time.Duration
-	IdleTimeout    time.Duration
+	Timeout        time.Duration
 	NoDNS          bool
-	HexFileOutput  *HexFileOutput
 	ScanPorts      bool
 	KeepListening  bool
 	ExitOnEOF      bool
@@ -54,6 +52,19 @@ type Config struct {
 	SendBuf        int
 	RecvBuf        int
 	Verbose        bool
+
+	UseSSL       bool
+	SSLVerify    bool
+	SSLCert      string
+	SSLKey       string
+	SSLTrustFile string
+	ServerName   string
+	SSLCiphers   []uint16
+	SSLAlpn      []string
+
+	ProxyAddr string
+	ProxyType string
+	ProxyAuth string
 }
 
 var (
