@@ -41,10 +41,7 @@ func (l *UDPListener) Accept() (net.Conn, error) {
 }
 
 func (l *UDPListener) Close() error {
-	if l.conn != nil {
-		return l.conn.Close()
-	}
-	return nil
+	return l.conn.Close()
 }
 
 func (l *UDPListener) Addr() net.Addr {
