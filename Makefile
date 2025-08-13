@@ -1,13 +1,13 @@
 .PHONY: all clean
 all: run
 build:
-	@go build -o gonc .
+	@go build -o ./bin/gonc .
 clean:
 	@echo "Cleaning the project..."
+	@rm -rf ./bin
 	@echo "Clean complete."
 test:
 	@echo "Running tests..."
-	@echo "Tests complete."
+	@go test -v ./...
 install:
-	@echo "Installing the project..."
-	@echo "Install complete."
+	go install ./...

@@ -13,6 +13,15 @@ import (
 	"time"
 )
 
+// Telnet command constants
+const (
+	WILL = 251 // WILL
+	WONT = 252 // WON'T
+	DO   = 253 // DO
+	DONT = 254 // DON'T
+	IAC  = 255 // Interpret As Command
+)
+
 func (n *netcat) runConnect(network, remoteAddr string) error {
 	if network == "tcp " || network == "udp" {
 		// Try both IPv4 and IPv6 if the network is tcp or udp
@@ -96,6 +105,22 @@ func (n *netcat) connect(network, remoteAddr string) error {
 			break
 		}
 
+		if n.cfg.Telnet {
+			tn, err := processTelnet(buf[:nb], conn)
+			if err != nil {
+				return fmt.Errorf("process telnet: %w", err)
+			}
+
+			if tn > 0 {
+				// if we processed telnet commands, extend the deadline and continue
+				if n.cfg.Timeout > 0 {
+					conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+				}
+
+				continue
+			}
+		}
+
 		if _, err := os.Stdout.Write(buf[:nb]); err != nil {
 			return err
 		}
@@ -106,6 +131,27 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	}
 
 	return <-writeErrChan
+}
+func processTelnet(data []byte, conn net.Conn) (int, error) {
+	if len(data) < 3 {
+		return 0, nil // Not enough data to process
+	}
+
+	if data[0] == IAC {
+		command := data[1]
+		option := data[2]
+
+		switch command {
+		case DO:
+			// just respond with WON'T for any DO request
+			return conn.Write([]byte{IAC, WONT, option})
+		case WILL:
+			// just respond with DON'T for any WILL request
+			return conn.Write([]byte{IAC, DONT, option})
+		}
+	}
+
+	return 0, nil // Return the data after the command
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
@@ -179,29 +225,27 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 		}
 	}
 
-	setReadBuffer(conn, n.cfg.RecvBuf)
-	setWriteBuffer(conn, n.cfg.SendBuf)
-
 	return conn, nil
 }
 
 func (n *netcat) portScan(network string) error {
-	currentPort := n.cfg.StartPort
-	for currentPort <= n.cfg.EndPort {
-		conn, err := n.dial(network, fmt.Sprintf("%s:%d", n.cfg.Host, currentPort))
+	for n.cfg.Port <= n.cfg.EndPort {
+		addr, err := n.cfg.ParseAddress()
+		if err != nil {
+			return fmt.Errorf("parse address: %w", err)
+		}
+
+		conn, err := n.dial(network, addr)
 		if err != nil {
 			n.log.Log("dial tcp: %s", err)
-			currentPort++
+			n.cfg.Port++
 			continue
 		}
 
-		n.log.Verbose("Connection to %s port %d succeeded!", n.cfg.Host, currentPort)
+		n.log.Verbose("Connection to %s succeeded!", addr)
 
-		if err := conn.Close(); err != nil {
-			n.log.Log("error closing connection: %s", err)
-		}
-
-		currentPort++
+		conn.Close()
+		n.cfg.Port++
 	}
 
 	return nil

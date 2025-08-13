@@ -97,9 +97,6 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 		return nil, fmt.Errorf("accept connection: %w", err)
 	}
 
-	setReadBuffer(conn, n.cfg.RecvBuf)
-	setWriteBuffer(conn, n.cfg.SendBuf)
-
 	if n.cfg.Timeout > 0 {
 		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 	}

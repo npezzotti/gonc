@@ -45,13 +45,11 @@ type Config struct {
 	ScanPorts      bool
 	KeepListening  bool
 	ExitOnEOF      bool
-	StartPort      uint16
 	EndPort        uint16
 	SourcePort     uint16
 	SourceHost     string
-	SendBuf        int
-	RecvBuf        int
 	Verbose        bool
+	Telnet         bool
 
 	UseSSL       bool
 	SSLVerify    bool

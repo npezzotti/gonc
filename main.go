@@ -11,12 +11,13 @@ import (
 )
 
 var (
+	// Basic flags
 	listen        = flag.Bool("l", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
 	udp           = flag.Bool("u", false, "use UDP instead of the default option of TCP.")
 	unix          = flag.Bool("U", false, "use Unix Domain Sockets")
-	nostdin       = flag.Bool("d", false, "do not attempt to read from stdin")
 	ipv4_only     = flag.Bool("4", false, "use IPv4 addresses only")
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
+	nostdin       = flag.Bool("d", false, "do not attempt to read from stdin")
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
 	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
@@ -26,10 +27,12 @@ var (
 	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
 		"after timeout seconds. Has no effect on the -listen option, i.e. nc will listen forever for a connection, "+
 		"with or without the -w flag.")
-	scan          = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
-	recvBuf       = flag.Int("I", 0, "Specify the size of the TCP receive buffer.")
-	sendBuf       = flag.Int("O", 0, "specify the size of the TCP send buffer.")
-	verbose       = flag.Bool("v", false, "enable more verbose output.")
+	scan   = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
+	telnet = flag.Bool("t", false, "send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests. "+
+		"This makes it possible to script telnet sessions.")
+	verbose = flag.Bool("v", false, "enable more verbose output.")
+
+	// SSL
 	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
 	sslVerify     = flag.Bool("ssl-verify", false, "Verify trust and domain name of certificates")
 	sslCert       = flag.String("ssl-cert", "", "Specify SSL certificate file (PEM) for listening")
@@ -39,8 +42,10 @@ var (
 	sslServerName = flag.String("ssl-servername", "", "Request distinct server name (SNI)")
 	sslAlpn       = flag.String("ssl-alpn", "", "Comma-separated list of ALPN protocols to use")
 
+	// Proxy
 	proxyAddr = flag.String("proxy", "", "Specify address of host to proxy through.")
-	proxyType = flag.String("proxy-type", "http", "Specify type of proxy to use (http, socks5, etc.).")
+	proxyType = flag.String("proxy-type", "5", "Use proxy_protocol when talking to the proxy server. "+
+		"Supported protocols are 5 (SOCKS v.5) and connect (HTTPS proxy). If the protocol is not specified, SOCKS version 5 is used.")
 	proxyAuth = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 )
 
@@ -82,7 +87,6 @@ func generateConfig() (*Config, error) {
 			}
 
 			cfg.Port = start
-			cfg.StartPort = start
 			cfg.EndPort = end
 		case SocketUnix, SocketUnixgram:
 			if len(flag.Args()) < 1 {
@@ -124,8 +128,21 @@ func generateConfig() (*Config, error) {
 	cfg.SSLKey = *sslKey
 	cfg.SSLTrustFile = *sslTrustFile
 
-	cfg.ProxyAddr = *proxyAddr
+	// Proxy configuration
 	cfg.ProxyType = ProxyType(*proxyType)
+
+	var addr = *proxyAddr
+	proxyAddrParts := strings.Split(addr, ":")
+	if len(proxyAddrParts) < 2 && proxyAddrParts[0] != "" {
+		switch cfg.ProxyType {
+		case ProxyTypeHTTP:
+			addr = fmt.Sprintf("%s:3218", proxyAddrParts[0])
+		case ProxyTypeSOCKS5:
+			addr = fmt.Sprintf("%s:1080", proxyAddrParts[0])
+		}
+	}
+
+	cfg.ProxyAddr = addr
 	cfg.ProxyAuth = *proxyAuth
 
 	alpn := strings.Split(*sslAlpn, ",")
@@ -153,15 +170,12 @@ func generateConfig() (*Config, error) {
 	cfg.SourcePort = uint16(*sourcePort)
 	cfg.SourceHost = *sourceAddr
 	cfg.NoDNS = *nodns
-
-	cfg.RecvBuf = *recvBuf
-	cfg.SendBuf = *sendBuf
-
 	cfg.NoStdin = *nostdin
 	cfg.ScanPorts = *scan
 	cfg.KeepListening = *keepListening
 	cfg.ExitOnEOF = *exitOnEOF
 	cfg.Verbose = *verbose
+	cfg.Telnet = *telnet
 
 	return cfg, nil
 }

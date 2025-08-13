@@ -20,7 +20,7 @@ type ProxyType string
 
 const (
 	ProxyTypeHTTP   ProxyType = "connect"
-	ProxyTypeSOCKS4 ProxyType = "4"
+	ProxyTypeSOCKS4 ProxyType = "4" // Note: SOCKS4 is not supported in this implementation
 	ProxyTypeSOCKS5 ProxyType = "5"
 )
 

@@ -106,36 +106,3 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 
 	return <-writeErrChan
 }
-
-func setWriteBuffer(conn net.Conn, size int) error {
-	if size > 0 {
-		switch c := conn.(type) {
-		case *net.UDPConn:
-			return c.SetWriteBuffer(size)
-		case *net.TCPConn:
-			return c.SetWriteBuffer(size)
-		case *net.UnixConn:
-			return c.SetWriteBuffer(size)
-		default:
-			return fmt.Errorf("unsupported connection type for setting send buffer: %T", conn)
-		}
-	}
-	return nil
-}
-
-func setReadBuffer(conn net.Conn, size int) error {
-	if size > 0 {
-		switch c := conn.(type) {
-		case *net.UDPConn:
-			return c.SetReadBuffer(size)
-		case *net.TCPConn:
-			return c.SetReadBuffer(size)
-		case *net.UnixConn:
-			return c.SetReadBuffer(size)
-		default:
-			return fmt.Errorf("unsupported connection type for setting receive buffer: %T", conn)
-		}
-	}
-
-	return nil
-}
