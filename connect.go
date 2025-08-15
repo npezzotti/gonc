@@ -212,6 +212,12 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 		}
 	}
 
+	if n.cfg.DebugSocket {
+		if err := enableSocketDebug(conn); err != nil {
+			return nil, fmt.Errorf("enable socket debug: %w", err)
+		}
+	}
+
 	return conn, nil
 }
 

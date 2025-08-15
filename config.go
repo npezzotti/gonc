@@ -50,6 +50,7 @@ type Config struct {
 	SourceHost     string
 	Verbose        bool
 	Telnet         bool
+	DebugSocket    bool
 
 	UseSSL       bool
 	SSLNoVerify  bool

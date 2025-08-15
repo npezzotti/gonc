@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -17,6 +18,40 @@ type netcat struct {
 type HalfCloser interface {
 	CloseRead() error
 	CloseWrite() error
+}
+
+func enableSocketDebug(conn net.Conn) error {
+	f, err := getFile(conn)
+	if err != nil {
+		return fmt.Errorf("get file descriptor: %w", err)
+	}
+	defer f.Close()
+
+	fd := int(f.Fd())
+	err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_DEBUG, 1)
+	if err != nil {
+		return fmt.Errorf("set socket option: %w", err)
+	}
+
+	return nil
+}
+
+func getFile(conn net.Conn) (*os.File, error) {
+	var file *os.File
+	var err error
+
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		file, err = c.File()
+	case *net.UDPConn:
+		file, err = c.File()
+	case *net.UnixConn:
+		file, err = c.File()
+	default:
+		err = fmt.Errorf("unsupported connection type: %T", conn)
+	}
+
+	return file, err
 }
 
 func (n *netcat) copyPackets(conn net.PacketConn) error {

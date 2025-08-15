@@ -35,6 +35,7 @@ var (
 	telnet = flag.Bool("t", false, "send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests. "+
 		"This makes it possible to script telnet sessions.")
 	verbose = flag.Bool("v", false, "enable more verbose output.")
+	debug   = flag.Bool("D", false, "enable debugging on the socket. Only works for TCP connections.")
 
 	// SSL
 	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
@@ -180,6 +181,7 @@ func generateConfig() (*Config, error) {
 	cfg.ExitOnEOF = *exitOnEOF
 	cfg.Verbose = *verbose
 	cfg.Telnet = *telnet
+	cfg.DebugSocket = *debug
 
 	return cfg, nil
 }

@@ -53,6 +53,12 @@ func (n *netcat) accept(listener net.Listener) error {
 	}
 	n.log.Verbose("Connection received on %s", addr)
 
+	if n.cfg.DebugSocket {
+		if err := enableSocketDebug(conn); err != nil {
+			return fmt.Errorf("enable socket debug: %w", err)
+		}
+	}
+
 	return n.handleConn(conn)
 }
 
