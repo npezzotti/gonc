@@ -76,9 +76,8 @@ func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
 			}
 
 			return tls.Listen(network, laddr, &tls.Config{
-				InsecureSkipVerify: !n.cfg.SSLVerify,
-				CipherSuites:       n.cfg.SSLCiphers,
-				Certificates:       []tls.Certificate{cert},
+				CipherSuites: n.cfg.SSLCiphers,
+				Certificates: []tls.Certificate{cert},
 			})
 		}
 		return net.Listen(network, laddr)

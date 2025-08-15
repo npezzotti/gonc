@@ -23,18 +23,8 @@ const (
 )
 
 func (n *netcat) runConnect(network, remoteAddr string) error {
-	if network == "tcp " || network == "udp" {
-		// Try both IPv4 and IPv6 if the network is tcp or udp
-		v4Err := n.connect(network+"4", remoteAddr)
-		if v4Err == nil {
-			return nil
-		}
-		v6Err := n.connect(network+"6", remoteAddr)
-		if v6Err == nil {
-			return nil
-		}
-
-		return errors.Join(v4Err, v6Err)
+	if n.cfg.ScanPorts {
+		return n.portScan(network)
 	}
 
 	return n.connect(network, remoteAddr)
@@ -46,10 +36,6 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		defer os.Remove(clientSocket) // Clean up the socket file after use
 
 		n.cfg.SourceHost = clientSocket
-	}
-
-	if n.cfg.ScanPorts {
-		return n.portScan(network)
 	}
 
 	conn, err := n.dial(network, remoteAddr)
@@ -132,6 +118,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 
 	return <-writeErrChan
 }
+
 func processTelnet(data []byte, conn net.Conn) (int, error) {
 	if len(data) < 3 {
 		return 0, nil // Not enough data to process
@@ -193,7 +180,7 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 	var conn net.Conn
 	if n.cfg.UseSSL {
 		tlsConfig := &tls.Config{
-			InsecureSkipVerify: !n.cfg.SSLVerify,
+			InsecureSkipVerify: n.cfg.SSLNoVerify,
 			CipherSuites:       n.cfg.SSLCiphers,
 			ServerName:         n.cfg.ServerName,
 		}

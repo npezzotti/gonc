@@ -52,7 +52,7 @@ type Config struct {
 	Telnet         bool
 
 	UseSSL       bool
-	SSLVerify    bool
+	SSLNoVerify  bool
 	SSLCert      string
 	SSLKey       string
 	SSLTrustFile string

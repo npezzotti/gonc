@@ -4,11 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func init() {
+	log.SetFlags(0)
+	log.SetPrefix("gonc: ")
+}
 
 var (
 	// Basic flags
@@ -21,7 +25,7 @@ var (
 	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
 		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
 	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
-	nodns      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
+	noDNS      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
 	sourceAddr = flag.String("s", "", "the IP of the interface which is used to send the packets.")
 	sourcePort = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
 	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
@@ -34,13 +38,13 @@ var (
 
 	// SSL
 	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
-	sslVerify     = flag.Bool("ssl-verify", false, "Verify trust and domain name of certificates")
-	sslCert       = flag.String("ssl-cert", "", "Specify SSL certificate file (PEM) for listening")
-	sslKey        = flag.String("ssl-key", "", "Specify SSL private key (PEM) for listening")
-	sslTrustFile  = flag.String("ssl-trustfile", "", "PEM file containing trusted SSL certificates")
-	sslCiphers    = flag.String("ssl-ciphers", "", "Comma-separated list of SSL cipher suites")
-	sslServerName = flag.String("ssl-servername", "", "Request distinct server name (SNI)")
-	sslAlpn       = flag.String("ssl-alpn", "", "Comma-separated list of ALPN protocols to use")
+	sslCert       = flag.String("cert", "", "Specify SSL certificate file (PEM) for listening")
+	sslKey        = flag.String("key", "", "Specify SSL private key (PEM) for listening")
+	sslNoVerify   = flag.Bool("no-verify", false, "Do not verify trust and domain name of certificates")
+	sslTrustFile  = flag.String("trustfile", "", "PEM file containing trusted SSL certificates")
+	sslCiphers    = flag.String("ciphers", "", "Comma-separated list of SSL cipher suites")
+	sslServerName = flag.String("servername", "", "Request distinct server name (SNI)")
+	sslAlpn       = flag.String("alpn", "", "Comma-separated list of ALPN protocols to use")
 
 	// Proxy
 	proxyAddr = flag.String("proxy", "", "Specify address of host to proxy through.")
@@ -123,7 +127,7 @@ func generateConfig() (*Config, error) {
 
 	// SSL configuration
 	cfg.UseSSL = *ssl
-	cfg.SSLVerify = *sslVerify
+	cfg.SSLNoVerify = *sslNoVerify
 	cfg.SSLCert = *sslCert
 	cfg.SSLKey = *sslKey
 	cfg.SSLTrustFile = *sslTrustFile
@@ -169,7 +173,7 @@ func generateConfig() (*Config, error) {
 
 	cfg.SourcePort = uint16(*sourcePort)
 	cfg.SourceHost = *sourceAddr
-	cfg.NoDNS = *nodns
+	cfg.NoDNS = *noDNS
 	cfg.NoStdin = *nostdin
 	cfg.ScanPorts = *scan
 	cfg.KeepListening = *keepListening
@@ -192,14 +196,12 @@ func parseSocketFlags(udp, unix bool) Socket {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	if err := run(log.Default()); err != nil {
+		log.Fatalln(err)
 	}
 }
 
-func run() error {
-	l := log.New(os.Stdout, "gonc: ", 0)
+func run(l *log.Logger) error {
 	flag.Parse()
 	cfg, err := generateConfig()
 	if err != nil {
@@ -211,11 +213,10 @@ func run() error {
 		log: NewLogger(l, cfg),
 	}
 
-	network := nc.cfg.ProtocolConfig.Network()
-
-	addr, err := nc.cfg.ParseAddress()
+	network := cfg.ProtocolConfig.Network()
+	addr, err := cfg.ParseAddress()
 	if err != nil {
-		return fmt.Errorf("parse address: %w", err)
+		return err
 	}
 
 	if nc.cfg.NetcatMode == NetcatModeListen {
