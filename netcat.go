@@ -15,8 +15,7 @@ type netcat struct {
 	log *Logger
 }
 
-type HalfCloser interface {
-	CloseRead() error
+type WriteCloser interface {
 	CloseWrite() error
 }
 
