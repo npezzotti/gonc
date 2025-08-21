@@ -48,7 +48,6 @@ func (c *telnetConn) Read(b []byte) (int, error) {
 
 	c.processTelnet(tmp[:n], c)
 
-	fmt.Println("exiting read")
 	return c.buffer.Read(b)
 }
 
@@ -127,7 +126,6 @@ func closeWrite(conn net.Conn) error {
 // processTelnet processes telnet commands in the given data.
 // It returns the number of bytes processed as telnet commands.
 func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
-	fmt.Println("processing telnet")
 	var i int
 	for i < len(data) {
 		if data[i] == IAC {
@@ -136,11 +134,9 @@ func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
 
 			switch command {
 			case DO:
-				fmt.Println("Processed DO command")
 				// just respond with WON'T for any DO request
 				conn.Write([]byte{IAC, WONT, option})
 			case WILL:
-				fmt.Println("Processed WILL command")
 				// just respond with DON'T for any WILL request
 				conn.Write([]byte{IAC, DONT, option})
 			}
@@ -151,7 +147,6 @@ func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
 			i++
 		}
 	}
-	fmt.Println("exiting")
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
