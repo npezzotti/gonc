@@ -124,7 +124,8 @@ func closeWrite(conn net.Conn) error {
 }
 
 // processTelnet processes telnet commands in the given data.
-// It returns the number of bytes processed as telnet commands.
+// It responds to DO and WILL commands with WONT and DONT respectively,
+// and stores regular data in the buffer.
 func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
 	var i int
 	for i < len(data) {
