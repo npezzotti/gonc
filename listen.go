@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -113,58 +112,20 @@ func (n *netcat) handleConn(conn net.Conn) error {
 	writeErrChan := make(chan error)
 	go func() {
 		var writeErr error
-		buf := make([]byte, 1024)
-		for {
-			nr, err := os.Stdin.Read(buf)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
-						writeErr = c.CloseWrite()
-					} else {
-						writeErr = conn.(HalfCloser).CloseWrite()
-					}
-				} else {
-					writeErr = err
-				}
-				break
+		_, err := io.Copy(&idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}, os.Stdin)
+		if err == nil {
+			if n.cfg.ExitOnEOF {
+				closeWrite(conn)
 			}
-
-			if _, err := conn.Write(buf[:nr]); err != nil {
-				writeErr = err
-				break
-			}
-
-			if n.cfg.Timeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-			}
+		} else {
+			writeErr = err
 		}
 		writeErrChan <- writeErr
 	}()
 
-	var readErr error
-	buf := make([]byte, 1024)
-	for {
-		nr, err := conn.Read(buf)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				readErr = err
-				break
-			}
-			return nil // EOF is expected when the connection is closed by the other side
-		}
-
-		if n.cfg.Timeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-		}
-
-		if _, err := os.Stdout.Write(buf[:nr]); err != nil {
-			readErr = err
-			break
-		}
-	}
-
-	if readErr != nil {
-		return readErr
+	_, err := io.Copy(os.Stdout, &idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout})
+	if err != nil {
+		return err
 	}
 
 	return <-writeErrChan

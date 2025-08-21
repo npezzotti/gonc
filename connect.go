@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -22,6 +22,43 @@ const (
 	IAC  = 255 // Interpret As Command
 )
 
+type telnetConn struct {
+	net.Conn
+	timeout time.Duration
+	buffer  bytes.Buffer
+}
+
+func (c *telnetConn) Read(b []byte) (int, error) {
+	if c.buffer.Len() > 0 {
+		return c.buffer.Read(b)
+	}
+
+	if c.timeout > 0 {
+		if err := c.SetDeadline(time.Now().Add(c.timeout)); err != nil {
+			return 0, err
+		}
+	}
+
+	// Read data into a temporary buffer to process telnet commands
+	tmp := make([]byte, 2048)
+	n, err := c.Conn.Read(tmp)
+	if err != nil {
+		return 0, err
+	}
+
+	c.processTelnet(tmp[:n], c)
+
+	fmt.Println("exiting read")
+	return c.buffer.Read(b)
+}
+
+func (c *telnetConn) Write(b []byte) (int, error) {
+	if c.timeout > 0 {
+		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+	}
+	return c.Conn.Write(b)
+}
+
 func (n *netcat) runConnect(network, remoteAddr string) error {
 	if n.cfg.ScanPorts {
 		return n.portScan(network)
@@ -32,8 +69,9 @@ func (n *netcat) runConnect(network, remoteAddr string) error {
 
 func (n *netcat) connect(network, remoteAddr string) error {
 	if n.cfg.ProtocolConfig.Socket == SocketUnixgram && n.cfg.SourceHost == "" {
+		// If using unixgram and no source host is specified, create a temporary socket file
 		clientSocket := filepath.Join(os.TempDir(), fmt.Sprintf("gonc-%x.sock", rand.Uint64()))
-		defer os.Remove(clientSocket) // Clean up the socket file after use
+		defer os.Remove(clientSocket)
 
 		n.cfg.SourceHost = clientSocket
 	}
@@ -53,92 +91,67 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	writeErrChan := make(chan error)
 	go func() {
 		var writeErr error
-		buf := make([]byte, 1024)
-		for {
-			nr, err := os.Stdin.Read(buf)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
-						writeErr = c.CloseWrite()
-					} else {
-						writeErr = conn.(HalfCloser).CloseWrite()
-					}
-				} else {
-					writeErr = err
-				}
-				break
+		_, err := io.Copy(&idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}, os.Stdin)
+		if err == nil {
+			if n.cfg.ExitOnEOF {
+				closeWrite(conn)
 			}
-
-			if _, err = conn.Write(buf[:nr]); err != nil {
-				writeErr = err
-				break
-			}
-
-			if n.cfg.Timeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-			}
+		} else {
+			writeErr = err
 		}
 		writeErrChan <- writeErr
 	}()
 
-	buf := make([]byte, 1024)
-	for {
-		nb, err := conn.Read(buf)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return err
-			}
-			break
-		}
+	var src io.Reader
+	if n.cfg.Telnet {
+		src = &telnetConn{Conn: conn, timeout: n.cfg.Timeout}
+	} else {
+		src = &idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}
+	}
 
-		if n.cfg.Telnet {
-			tn, err := processTelnet(buf[:nb], conn)
-			if err != nil {
-				return fmt.Errorf("process telnet: %w", err)
-			}
-
-			if tn > 0 {
-				// if we processed telnet commands, extend the deadline and continue
-				if n.cfg.Timeout > 0 {
-					conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-				}
-
-				continue
-			}
-		}
-
-		if _, err := os.Stdout.Write(buf[:nb]); err != nil {
-			return err
-		}
-
-		if n.cfg.Timeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
-		}
+	if _, err = io.Copy(os.Stdout, src); err != nil {
+		return err
 	}
 
 	return <-writeErrChan
 }
 
-func processTelnet(data []byte, conn net.Conn) (int, error) {
-	if len(data) < 3 {
-		return 0, nil // Not enough data to process
+func closeWrite(conn net.Conn) error {
+	if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
+		return c.CloseWrite()
+	} else {
+		return conn.(WriteCloser).CloseWrite()
 	}
+}
 
-	if data[0] == IAC {
-		command := data[1]
-		option := data[2]
+// processTelnet processes telnet commands in the given data.
+// It returns the number of bytes processed as telnet commands.
+func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
+	fmt.Println("processing telnet")
+	var i int
+	for i < len(data) {
+		if data[i] == IAC {
+			command := data[i+1]
+			option := data[i+2]
 
-		switch command {
-		case DO:
-			// just respond with WON'T for any DO request
-			return conn.Write([]byte{IAC, WONT, option})
-		case WILL:
-			// just respond with DON'T for any WILL request
-			return conn.Write([]byte{IAC, DONT, option})
+			switch command {
+			case DO:
+				fmt.Println("Processed DO command")
+				// just respond with WON'T for any DO request
+				conn.Write([]byte{IAC, WONT, option})
+			case WILL:
+				fmt.Println("Processed WILL command")
+				// just respond with DON'T for any WILL request
+				conn.Write([]byte{IAC, DONT, option})
+			}
+
+			i += 3
+		} else {
+			c.buffer.WriteByte(data[i])
+			i++
 		}
 	}
-
-	return 0, nil // Return the data after the command
+	fmt.Println("exiting")
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
@@ -216,6 +229,10 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 		if err := enableSocketDebug(conn); err != nil {
 			return nil, fmt.Errorf("enable socket debug: %w", err)
 		}
+	}
+
+	if n.cfg.Timeout > 0 {
+		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 	}
 
 	return conn, nil

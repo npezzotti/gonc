@@ -19,6 +19,25 @@ type WriteCloser interface {
 	CloseWrite() error
 }
 
+type idleTimeoutConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c *idleTimeoutConn) Read(b []byte) (int, error) {
+	if c.timeout > 0 {
+		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+	}
+	return c.Conn.Read(b)
+}
+
+func (c *idleTimeoutConn) Write(b []byte) (int, error) {
+	if c.timeout > 0 {
+		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+	}
+	return c.Conn.Write(b)
+}
+
 func enableSocketDebug(conn net.Conn) error {
 	f, err := getFile(conn)
 	if err != nil {
