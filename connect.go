@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -29,6 +30,7 @@ type telnetConn struct {
 }
 
 func (c *telnetConn) Read(b []byte) (int, error) {
+	// If there's data in the buffer, read from it first
 	if c.buffer.Len() > 0 {
 		return c.buffer.Read(b)
 	}
@@ -41,14 +43,19 @@ func (c *telnetConn) Read(b []byte) (int, error) {
 
 	// Read data into a temporary buffer to process telnet commands
 	tmp := make([]byte, 2048)
-	n, err := c.Conn.Read(tmp)
-	if err != nil {
-		return 0, err
+	nc, connErr := c.Conn.Read(tmp)
+
+	if nc > 0 {
+		c.processTelnet(tmp[:nc], c)
 	}
 
-	c.processTelnet(tmp[:n], c)
+	nb, err := c.buffer.Read(b)
+	if err != nil && !errors.Is(err, io.EOF) {
+		// Only return EOF if received on the underlying connection
+		return nb, err
+	}
 
-	return c.buffer.Read(b)
+	return nb, connErr
 }
 
 func (c *telnetConn) Write(b []byte) (int, error) {
@@ -136,10 +143,10 @@ func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
 			switch command {
 			case DO:
 				// just respond with WON'T for any DO request
-				conn.Write([]byte{IAC, WONT, option})
+				conn.Write([]byte{IAC, DONT, option})
 			case WILL:
 				// just respond with DON'T for any WILL request
-				conn.Write([]byte{IAC, DONT, option})
+				conn.Write([]byte{IAC, WONT, option})
 			}
 
 			i += 3
