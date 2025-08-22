@@ -44,7 +44,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	writeErrChan := make(chan error)
 	go func() {
 		var writeErr error
-		_, err := io.Copy(&idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}, os.Stdin)
+		_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), os.Stdin)
 		if err == nil {
 			if n.cfg.ExitOnEOF {
 				closeWrite(conn)
@@ -57,9 +57,9 @@ func (n *netcat) connect(network, remoteAddr string) error {
 
 	var src io.Reader
 	if n.cfg.Telnet {
-		src = &telnetConn{Conn: conn, timeout: n.cfg.Timeout}
+		src = newTelnetConn(conn, n.cfg.Timeout)
 	} else {
-		src = &idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}
+		src = newIdleTimeoutConn(conn, n.cfg.Timeout)
 	}
 
 	if _, err = io.Copy(os.Stdout, src); err != nil {

@@ -23,6 +23,13 @@ type telnetConn struct {
 	buffer  bytes.Buffer
 }
 
+func newTelnetConn(conn net.Conn, timeout time.Duration) *telnetConn {
+	return &telnetConn{
+		Conn:    conn,
+		timeout: timeout,
+	}
+}
+
 func (c *telnetConn) Read(b []byte) (int, error) {
 	// If there's data in the buffer, read from it first
 	if c.buffer.Len() > 0 {
