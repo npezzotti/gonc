@@ -44,16 +44,11 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	var writeErrChan = make(chan error)
 	if !n.cfg.NoStdin {
 		go func() {
-			var stdinErr error
 			_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-			if err == nil {
-				if n.cfg.ExitOnEOF {
-					stdinErr = closeWrite(conn)
-				}
-			} else {
-				stdinErr = err
+			if err == nil && n.cfg.ExitOnEOF {
+				err = closeWrite(conn)
 			}
-			writeErrChan <- stdinErr
+			writeErrChan <- err
 		}()
 	}
 
