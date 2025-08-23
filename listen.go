@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"time"
 )
 
@@ -64,7 +63,7 @@ func (n *netcat) accept(listener net.Listener) error {
 func (n *netcat) acceptForever(listener net.Listener) error {
 	for {
 		if err := n.accept(listener); err != nil {
-			return fmt.Errorf("listen: %w", err)
+			return fmt.Errorf("accept: %w", err)
 		}
 	}
 }
@@ -110,23 +109,25 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 
 func (n *netcat) handleConn(conn net.Conn) error {
 	writeErrChan := make(chan error)
-	go func() {
-		var writeErr error
-		_, err := io.Copy(&idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout}, os.Stdin)
-		if err == nil {
-			if n.cfg.ExitOnEOF {
-				closeWrite(conn)
+	if !n.cfg.NoStdin {
+		go func() {
+			_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
+			if err == nil && n.cfg.ExitOnEOF {
+				err = closeWrite(conn)
 			}
-		} else {
-			writeErr = err
-		}
-		writeErrChan <- writeErr
-	}()
-
-	_, err := io.Copy(os.Stdout, &idleTimeoutConn{Conn: conn, timeout: n.cfg.Timeout})
-	if err != nil {
-		return err
+			writeErrChan <- err
+		}()
 	}
 
-	return <-writeErrChan
+	_, readErr := io.Copy(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout))
+
+	if !n.cfg.NoStdin {
+		// Wait for stdin copying to finish
+		writeErr := <-writeErrChan
+		if writeErr != nil {
+			return writeErr
+		}
+	}
+
+	return readErr
 }

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -211,8 +212,10 @@ func run(l *log.Logger) error {
 	}
 
 	nc := &netcat{
-		cfg: cfg,
-		log: NewLogger(l, cfg),
+		stdin:  os.Stdin,
+		stdout: os.Stdout,
+		cfg:    cfg,
+		log:    NewLogger(l, cfg),
 	}
 
 	network := cfg.ProtocolConfig.Network()

@@ -41,19 +41,21 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		return n.copyPackets(conn.(net.PacketConn))
 	}
 
-	writeErrChan := make(chan error)
-	go func() {
-		var writeErr error
-		_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), os.Stdin)
-		if err == nil {
-			if n.cfg.ExitOnEOF {
-				closeWrite(conn)
+	var writeErrChan = make(chan error)
+	if !n.cfg.NoStdin {
+		go func() {
+			var stdinErr error
+			_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
+			if err == nil {
+				if n.cfg.ExitOnEOF {
+					stdinErr = closeWrite(conn)
+				}
+			} else {
+				stdinErr = err
 			}
-		} else {
-			writeErr = err
-		}
-		writeErrChan <- writeErr
-	}()
+			writeErrChan <- stdinErr
+		}()
+	}
 
 	var src io.Reader
 	if n.cfg.Telnet {
@@ -62,19 +64,30 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		src = newIdleTimeoutConn(conn, n.cfg.Timeout)
 	}
 
-	if _, err = io.Copy(os.Stdout, src); err != nil {
-		return err
+	_, readErr := io.Copy(n.stdout, src)
+
+	if !n.cfg.NoStdin {
+		stdinErr := <-writeErrChan
+		if stdinErr != nil {
+			return stdinErr
+		}
 	}
 
-	return <-writeErrChan
+	return readErr
 }
 
 func closeWrite(conn net.Conn) error {
-	if c, ok := conn.(*tls.Conn); ok && c.ConnectionState().HandshakeComplete {
-		return c.CloseWrite()
-	} else {
-		return conn.(WriteCloser).CloseWrite()
+	switch c := conn.(type) {
+	case *tls.Conn:
+		if c.ConnectionState().HandshakeComplete {
+			return c.CloseWrite()
+		}
+	default:
+		if writeCloser, ok := c.(WriteCloser); ok {
+			return writeCloser.CloseWrite()
+		}
 	}
+	return fmt.Errorf("unsupported connection type: %T", conn)
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {

@@ -11,8 +11,10 @@ import (
 )
 
 type netcat struct {
-	cfg *Config
-	log *Logger
+	stdin  io.Reader
+	stdout io.Writer
+	cfg    *Config
+	log    *Logger
 }
 
 type WriteCloser interface {
@@ -139,7 +141,7 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 
 	for {
 		if nb > 0 {
-			if _, err := os.Stdout.Write(connBuff[:nb]); err != nil {
+			if _, err := n.stdout.Write(connBuff[:nb]); err != nil {
 				return fmt.Errorf("write stdout: %w", err)
 			}
 		}
