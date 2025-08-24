@@ -48,14 +48,14 @@ func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 }
 
 func enableSocketDebug(conn net.Conn) error {
-	f, err := getFile(conn)
+	rawConn, err := getRawConn(conn)
 	if err != nil {
 		return fmt.Errorf("get file descriptor: %w", err)
 	}
-	defer f.Close()
 
-	fd := int(f.Fd())
-	err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_DEBUG, 1)
+	err = rawConn.Control(func(fd uintptr) {
+		err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_DEBUG, 1)
+	})
 	if err != nil {
 		return fmt.Errorf("set socket option: %w", err)
 	}
@@ -63,22 +63,17 @@ func enableSocketDebug(conn net.Conn) error {
 	return nil
 }
 
-func getFile(conn net.Conn) (*os.File, error) {
-	var file *os.File
-	var err error
-
+func getRawConn(conn net.Conn) (syscall.RawConn, error) {
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		file, err = c.File()
+		return c.SyscallConn()
 	case *net.UDPConn:
-		file, err = c.File()
+		return c.SyscallConn()
 	case *net.UnixConn:
-		file, err = c.File()
+		return c.SyscallConn()
 	default:
-		err = fmt.Errorf("unsupported connection type: %T", conn)
+		return nil, fmt.Errorf("unsupported connection type: %T", conn)
 	}
-
-	return file, err
 }
 
 func (n *netcat) copyPackets(conn net.PacketConn) error {
