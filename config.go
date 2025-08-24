@@ -38,7 +38,8 @@ type Config struct {
 	NetcatMode     NetcatMode
 	Host           string
 	Port           uint16
-	ProtocolConfig ProtocolConfig
+	Socket         Socket
+	IPType         int
 	NoStdin        bool
 	Timeout        time.Duration
 	NoDNS          bool
@@ -71,11 +72,6 @@ var (
 	DefaultIPv6Addr = "::"
 )
 
-type ProtocolConfig struct {
-	Socket Socket
-	IPType int
-}
-
 func NewDefaultConfig() *Config {
 	return &Config{
 		NetcatMode: NetcatModeConnect,
@@ -85,14 +81,14 @@ func NewDefaultConfig() *Config {
 func (c *Config) ParseAddress() (string, error) {
 	switch c.NetcatMode {
 	case NetcatModeListen:
-		switch c.ProtocolConfig.Socket {
+		switch c.Socket {
 		case SocketUnix, SocketUnixgram:
 			return c.Host, nil
 		case SocketTCP, SocketUDP:
 			var host string
 			var err error
 			if c.Host == "" {
-				switch c.ProtocolConfig.IPType {
+				switch c.IPType {
 				case IPv6:
 					host = DefaultIPv6Addr
 				default:
@@ -120,7 +116,7 @@ func (c *Config) ParseAddress() (string, error) {
 			return "", fmt.Errorf("host is required")
 		}
 
-		switch c.ProtocolConfig.Socket {
+		switch c.Socket {
 		case SocketUnix, SocketUnixgram:
 			return c.Host, nil
 		case SocketTCP, SocketUDP:
@@ -152,10 +148,10 @@ func parseIp(ip string) (string, error) {
 	return parsedIP.String(), nil
 }
 
-func (p *ProtocolConfig) Network() string {
-	switch p.Socket {
+func (c *Config) Network() string {
+	switch c.Socket {
 	case SocketTCP:
-		switch p.IPType {
+		switch c.IPType {
 		case IPv4:
 			return "tcp4"
 		case IPv6:
@@ -164,7 +160,7 @@ func (p *ProtocolConfig) Network() string {
 			return "tcp"
 		}
 	case SocketUDP:
-		switch p.IPType {
+		switch c.IPType {
 		case IPv4:
 			return "udp4"
 		case IPv6:

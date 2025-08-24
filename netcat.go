@@ -89,7 +89,7 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		connBuff   = make([]byte, 1024)
 	)
 
-	if n.cfg.NetcatMode == NetcatModeListen {
+	if n.cfg.NetcatMode == NetcatModeListen && !n.cfg.KeepListening {
 		nb, remoteAddr, err = conn.ReadFrom(connBuff)
 		if err != nil {
 			return fmt.Errorf("read from: %w", err)

@@ -17,7 +17,7 @@ func (n *netcat) runListen(network, laddr string) error {
 
 	n.log.Verbose("Listening on %s", listener.Addr().String())
 
-	if n.cfg.ProtocolConfig.Socket.IsPacket() {
+	if n.cfg.Socket.IsPacket() {
 		return n.acceptUDP(listener)
 	}
 
@@ -69,7 +69,7 @@ func (n *netcat) acceptForever(listener net.Listener) error {
 }
 
 func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
-	switch n.cfg.ProtocolConfig.Socket {
+	switch n.cfg.Socket {
 	case SocketUDP, SocketUnixgram:
 		return NewUDPListener(network, laddr)
 	case SocketTCP:
@@ -88,7 +88,7 @@ func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
 	case SocketUnix:
 		return net.Listen(network, laddr)
 	default:
-		return nil, fmt.Errorf("unsupported socket type: %v", n.cfg.ProtocolConfig.Socket)
+		return nil, fmt.Errorf("unsupported socket type: %v", n.cfg.Socket)
 	}
 }
 

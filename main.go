@@ -62,14 +62,18 @@ func generateConfig() (*Config, error) {
 		cfg.NetcatMode = NetcatModeListen
 	}
 
-	cfg.ProtocolConfig.Socket = parseSocketFlags(*udp, *unix)
+	cfg.Socket = parseSocketFlags(*udp, *unix)
+	cfg.Socket = parseSocketFlags(*udp, *unix)
 
 	if *ipv4_only {
-		cfg.ProtocolConfig.IPType = IPv4
+		cfg.IPType = IPv4
+		cfg.IPType = IPv4
 	} else if *ipv6_only {
-		cfg.ProtocolConfig.IPType = IPv6
+		cfg.IPType = IPv6
+		cfg.IPType = IPv6
 	} else {
-		cfg.ProtocolConfig.IPType = IPv4v6
+		cfg.IPType = IPv4v6
+		cfg.IPType = IPv4v6
 	}
 
 	var err error
@@ -80,7 +84,7 @@ func generateConfig() (*Config, error) {
 
 	switch cfg.NetcatMode {
 	case NetcatModeConnect:
-		switch cfg.ProtocolConfig.Socket {
+		switch cfg.Socket {
 		case SocketTCP, SocketUDP:
 			if len(flag.Args()) < 2 {
 				return nil, fmt.Errorf("host and port required")
@@ -103,7 +107,7 @@ func generateConfig() (*Config, error) {
 			cfg.Host = flag.Arg(0)
 		}
 	case NetcatModeListen:
-		switch cfg.ProtocolConfig.Socket {
+		switch cfg.Socket {
 		case SocketTCP, SocketUDP:
 			if len(flag.Args()) == 1 {
 				port, err := strconv.ParseUint(flag.Arg(0), 10, 16)
@@ -218,7 +222,7 @@ func run(l *log.Logger) error {
 		log:    NewLogger(l, cfg),
 	}
 
-	network := cfg.ProtocolConfig.Network()
+	network := cfg.Network()
 	addr, err := cfg.ParseAddress()
 	if err != nil {
 		return err

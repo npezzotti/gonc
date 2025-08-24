@@ -21,7 +21,7 @@ func (n *netcat) runConnect(network, remoteAddr string) error {
 }
 
 func (n *netcat) connect(network, remoteAddr string) error {
-	if n.cfg.ProtocolConfig.Socket == SocketUnixgram && n.cfg.SourceHost == "" {
+	if n.cfg.Socket == SocketUnixgram && n.cfg.SourceHost == "" {
 		// If using unixgram and no source host is specified, create a temporary socket file
 		clientSocket := filepath.Join(os.TempDir(), fmt.Sprintf("gonc-%x.sock", rand.Uint64()))
 		defer os.Remove(clientSocket)
@@ -37,7 +37,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 
 	n.log.Verbose("Connection to %s [%s] succeeded!", conn.RemoteAddr().String(), network)
 
-	if n.cfg.ProtocolConfig.Socket.IsPacket() {
+	if n.cfg.Socket.IsPacket() {
 		return n.copyPackets(conn.(net.PacketConn))
 	}
 
@@ -94,7 +94,7 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 	var dialer net.Dialer
 	var err error
 
-	switch n.cfg.ProtocolConfig.Socket {
+	switch n.cfg.Socket {
 	case SocketTCP:
 		dialer.LocalAddr, err = net.ResolveTCPAddr(network, fmt.Sprintf("%s:%d", n.cfg.SourceHost, n.cfg.SourcePort))
 		if err != nil {
