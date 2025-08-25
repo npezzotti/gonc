@@ -62,12 +62,9 @@ func generateConfig() (*Config, error) {
 
 	if *ipv4_only {
 		cfg.IPType = IPv4
-		cfg.IPType = IPv4
 	} else if *ipv6_only {
 		cfg.IPType = IPv6
-		cfg.IPType = IPv6
 	} else {
-		cfg.IPType = IPv4v6
 		cfg.IPType = IPv4v6
 	}
 
