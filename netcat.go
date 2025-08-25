@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"syscall"
 	"time"
 )
 
@@ -47,35 +45,6 @@ func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 	return c.Conn.Write(b)
 }
 
-func enableSocketDebug(conn net.Conn) error {
-	rawConn, err := getRawConn(conn)
-	if err != nil {
-		return fmt.Errorf("get file descriptor: %w", err)
-	}
-
-	err = rawConn.Control(func(fd uintptr) {
-		err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_DEBUG, 1)
-	})
-	if err != nil {
-		return fmt.Errorf("set socket option: %w", err)
-	}
-
-	return nil
-}
-
-func getRawConn(conn net.Conn) (syscall.RawConn, error) {
-	switch c := conn.(type) {
-	case *net.TCPConn:
-		return c.SyscallConn()
-	case *net.UDPConn:
-		return c.SyscallConn()
-	case *net.UnixConn:
-		return c.SyscallConn()
-	default:
-		return nil, fmt.Errorf("unsupported connection type: %T", conn)
-	}
-}
-
 func (n *netcat) copyPackets(conn net.PacketConn) error {
 	var (
 		remoteAddr net.Addr
@@ -104,7 +73,7 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		var writeErr error
 		stdinBuf := make([]byte, 1024)
 		for {
-			nb, err := os.Stdin.Read(stdinBuf)
+			nb, err := n.stdin.Read(stdinBuf)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
 					writeErr = fmt.Errorf("read stdin: %w", err)

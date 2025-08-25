@@ -35,36 +35,34 @@ const (
 )
 
 type Config struct {
-	NetcatMode     NetcatMode
-	Host           string
-	Port           uint16
-	Socket         Socket
-	IPType         int
-	NoStdin        bool
-	Timeout        time.Duration
-	NoDNS          bool
-	ScanPorts      bool
-	KeepListening  bool
-	ExitOnEOF      bool
-	EndPort        uint16
-	SourcePort     uint16
-	SourceHost     string
-	Verbose        bool
-	Telnet         bool
-	DebugSocket    bool
-
-	UseSSL       bool
-	SSLNoVerify  bool
-	SSLCert      string
-	SSLKey       string
-	SSLTrustFile string
-	ServerName   string
-	SSLCiphers   []uint16
-	SSLAlpn      []string
-
-	ProxyAddr string
-	ProxyType ProxyType
-	ProxyAuth string
+	NetcatMode    NetcatMode
+	Host          string
+	Port          uint16
+	Socket        Socket
+	IPType        int
+	NoStdin       bool
+	Timeout       time.Duration
+	NoDNS         bool
+	ScanPorts     bool
+	KeepListening bool
+	ExitOnEOF     bool
+	EndPort       uint16
+	SourcePort    uint16
+	SourceHost    string
+	Verbose       bool
+	Telnet        bool
+	Interval      time.Duration
+	UseSSL        bool
+	SSLNoVerify   bool
+	SSLCert       string
+	SSLKey        string
+	SSLTrustFile  string
+	ServerName    string
+	SSLCiphers    []uint16
+	SSLAlpn       []string
+	ProxyAddr     string
+	ProxyType     ProxyType
+	ProxyAuth     string
 }
 
 var (

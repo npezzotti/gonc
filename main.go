@@ -16,10 +16,9 @@ func init() {
 }
 
 var (
-	// Basic flags
 	listen        = flag.Bool("l", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
 	udp           = flag.Bool("u", false, "use UDP instead of the default option of TCP.")
-	unix          = flag.Bool("U", false, "use Unix Domain Sockets")
+	useUnix       = flag.Bool("U", false, "use Unix Domain Sockets")
 	ipv4_only     = flag.Bool("4", false, "use IPv4 addresses only")
 	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
 	nostdin       = flag.Bool("d", false, "do not attempt to read from stdin")
@@ -35,10 +34,8 @@ var (
 	scan   = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
 	telnet = flag.Bool("t", false, "send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests. "+
 		"This makes it possible to script telnet sessions.")
-	verbose = flag.Bool("v", false, "enable more verbose output.")
-	debug   = flag.Bool("D", false, "enable debugging on the socket. Only works for TCP connections.")
-
-	// SSL
+	verbose       = flag.Bool("v", false, "enable more verbose output.")
+	interval      = flag.String("i", "0s", "Sleep for interval seconds between lines of text sent and received. Also causes a delay time between connections to multiple ports.")
 	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
 	sslCert       = flag.String("cert", "", "Specify SSL certificate file (PEM) for listening")
 	sslKey        = flag.String("key", "", "Specify SSL private key (PEM) for listening")
@@ -47,10 +44,8 @@ var (
 	sslCiphers    = flag.String("ciphers", "", "Comma-separated list of SSL cipher suites")
 	sslServerName = flag.String("servername", "", "Request distinct server name (SNI)")
 	sslAlpn       = flag.String("alpn", "", "Comma-separated list of ALPN protocols to use")
-
-	// Proxy
-	proxyAddr = flag.String("proxy", "", "Specify address of host to proxy through.")
-	proxyType = flag.String("proxy-type", "5", "Use proxy_protocol when talking to the proxy server. "+
+	proxyAddr     = flag.String("proxy", "", "Specify address of host to proxy through.")
+	proxyType     = flag.String("proxy-type", "5", "Use proxy_protocol when talking to the proxy server. "+
 		"Supported protocols are 5 (SOCKS v.5) and connect (HTTPS proxy). If the protocol is not specified, SOCKS version 5 is used.")
 	proxyAuth = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 )
@@ -62,8 +57,7 @@ func generateConfig() (*Config, error) {
 		cfg.NetcatMode = NetcatModeListen
 	}
 
-	cfg.Socket = parseSocketFlags(*udp, *unix)
-	cfg.Socket = parseSocketFlags(*udp, *unix)
+	cfg.Socket = parseSocketFlags(*udp, *useUnix)
 
 	if *ipv4_only {
 		cfg.IPType = IPv4
@@ -186,7 +180,11 @@ func generateConfig() (*Config, error) {
 	cfg.ExitOnEOF = *exitOnEOF
 	cfg.Verbose = *verbose
 	cfg.Telnet = *telnet
-	cfg.DebugSocket = *debug
+
+	cfg.Interval, err = time.ParseDuration(*interval)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse interval: %w", err)
+	}
 
 	return cfg, nil
 }

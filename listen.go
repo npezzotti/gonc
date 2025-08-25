@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -50,12 +51,6 @@ func (n *netcat) accept(listener net.Listener) error {
 		addr = conn.LocalAddr().String()
 	}
 	n.log.Verbose("Connection received on %s", addr)
-
-	if n.cfg.DebugSocket {
-		if err := enableSocketDebug(conn); err != nil {
-			return fmt.Errorf("enable socket debug: %w", err)
-		}
-	}
 
 	return n.handleConn(conn)
 }
@@ -110,16 +105,60 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 func (n *netcat) handleConn(conn net.Conn) error {
 	writeErrChan := make(chan error)
 	if !n.cfg.NoStdin {
-		go func() {
-			_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-			if err == nil && n.cfg.ExitOnEOF {
-				err = closeWrite(conn)
-			}
-			writeErrChan <- err
-		}()
+		if n.cfg.Interval > 0 {
+			go func() {
+				scanner := bufio.NewScanner(n.stdin)
+				var writeErr error
+				for scanner.Scan() {
+					_, err := conn.Write(append(scanner.Bytes(), '\n'))
+					if err != nil {
+						writeErr = err
+						break
+					}
+					time.Sleep(n.cfg.Interval)
+				}
+
+				scanErr := scanner.Err()
+				if scanErr != nil {
+					writeErr = scanErr
+				}
+
+				if writeErr == nil && n.cfg.ExitOnEOF {
+					writeErr = closeWrite(conn)
+				}
+
+				writeErrChan <- writeErr
+			}()
+		} else {
+			go func() {
+				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
+				if err == nil && n.cfg.ExitOnEOF {
+					err = closeWrite(conn)
+				}
+				writeErrChan <- err
+			}()
+		}
 	}
 
-	_, readErr := io.Copy(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout))
+	var readErr error
+	if n.cfg.Interval > 0 {
+		scanner := bufio.NewScanner(conn)
+		for scanner.Scan() {
+			_, err := n.stdout.Write(append(scanner.Bytes(), '\n'))
+			if err != nil {
+				readErr = err
+				break
+			}
+			time.Sleep(n.cfg.Interval)
+		}
+
+		scanErr := scanner.Err()
+		if scanErr != nil {
+			readErr = scanErr
+		}
+	} else {
+		_, readErr = io.Copy(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout))
+	}
 
 	if !n.cfg.NoStdin {
 		// Wait for stdin copying to finish

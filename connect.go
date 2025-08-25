@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -43,13 +44,39 @@ func (n *netcat) connect(network, remoteAddr string) error {
 
 	var writeErrChan = make(chan error)
 	if !n.cfg.NoStdin {
-		go func() {
-			_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-			if err == nil && n.cfg.ExitOnEOF {
-				err = closeWrite(conn)
-			}
-			writeErrChan <- err
-		}()
+		if n.cfg.Interval > 0 {
+			go func() {
+				scanner := bufio.NewScanner(n.stdin)
+				var writeErr error
+				for scanner.Scan() {
+					_, err := conn.Write(append(scanner.Bytes(), '\n'))
+					if err != nil {
+						writeErr = err
+						break
+					}
+					time.Sleep(n.cfg.Interval)
+				}
+
+				scanErr := scanner.Err()
+				if scanErr != nil {
+					writeErr = scanErr
+				}
+
+				if writeErr == nil && n.cfg.ExitOnEOF {
+					writeErr = closeWrite(conn)
+				}
+
+				writeErrChan <- writeErr
+			}()
+		} else {
+			go func() {
+				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
+				if err == nil && n.cfg.ExitOnEOF {
+					err = closeWrite(conn)
+				}
+				writeErrChan <- err
+			}()
+		}
 	}
 
 	var src io.Reader
@@ -59,7 +86,25 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		src = newIdleTimeoutConn(conn, n.cfg.Timeout)
 	}
 
-	_, readErr := io.Copy(n.stdout, src)
+	var readErr error
+	if n.cfg.Interval > 0 {
+		scanner := bufio.NewScanner(src)
+		for scanner.Scan() {
+			_, err := n.stdout.Write(append(scanner.Bytes(), '\n'))
+			if err != nil {
+				readErr = err
+				break
+			}
+			time.Sleep(n.cfg.Interval)
+		}
+
+		scanErr := scanner.Err()
+		if scanErr != nil {
+			readErr = scanErr
+		}
+	} else {
+		_, readErr = io.Copy(n.stdout, src)
+	}
 
 	if !n.cfg.NoStdin {
 		stdinErr := <-writeErrChan
@@ -156,12 +201,6 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 		}
 	}
 
-	if n.cfg.DebugSocket {
-		if err := enableSocketDebug(conn); err != nil {
-			return nil, fmt.Errorf("enable socket debug: %w", err)
-		}
-	}
-
 	if n.cfg.Timeout > 0 {
 		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 	}
@@ -187,6 +226,10 @@ func (n *netcat) portScan(network string) error {
 
 		conn.Close()
 		n.cfg.Port++
+
+		if n.cfg.Interval > 0 {
+			time.Sleep(n.cfg.Interval)
+		}
 	}
 
 	return nil
