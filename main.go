@@ -16,26 +16,27 @@ func init() {
 }
 
 var (
-	listen        = flag.Bool("l", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
-	udp           = flag.Bool("u", false, "use UDP instead of the default option of TCP.")
-	useUnix       = flag.Bool("U", false, "use Unix Domain Sockets")
-	ipv4_only     = flag.Bool("4", false, "use IPv4 addresses only")
-	ipv6_only     = flag.Bool("6", false, "use IPv6 addresses only")
-	nostdin       = flag.Bool("d", false, "do not attempt to read from stdin")
-	keepListening = flag.Bool("k", false, "  When a connection is completed, listen for another one.  Requires -l."+
-		"When used together with the -u option, the server socket is not connected and it can receive UDP datagrams from multiple hosts.")
-	exitOnEOF  = flag.Bool("N", false, "exit when EOF is received on stdin.  This is the default behavior, but can be disabled with this flag.")
-	noDNS      = flag.Bool("n", false, "do not resolve hostnames to IP addresses")
-	sourceAddr = flag.String("s", "", "the IP of the interface which is used to send the packets.")
-	sourcePort = flag.Uint("p", 0, "the source port nc should use, subject to privilege restrictions and availability.")
-	timeout    = flag.String("w", "0s", "connections which cannot be established or are idle timeout "+
-		"after timeout seconds. Has no effect on the -listen option, i.e. nc will listen forever for a connection, "+
+	listen = flag.Bool("listen", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
+	udp    = flag.Bool("udp", false, "use UDP instead of the default option of TCP. For UNIX-domain sockets, use a datagram socket instead of a stream socket.  "+
+		"If a UNIX-domain socket is used, a temporary receiving socket is created unless the -source flag is given.")
+	useUnix       = flag.Bool("unix", false, "use Unix Domain Sockets")
+	ipv4_only     = flag.Bool("ipv4", false, "use IPv4 addresses only")
+	ipv6_only     = flag.Bool("ipv6", false, "use IPv6 addresses only")
+	nostdin       = flag.Bool("nostdin", false, "do not attempt to read from stdin")
+	keepListening = flag.Bool("keep", false, "when a connection is completed, listen for another one.  Requires -listen.")
+	exitOnEOF     = flag.Bool("shutdown", false, "shutdown the network socket after EOF on the input.")
+	noDNS         = flag.Bool("no-dns", false, "do not resolve hostnames to IP addresses")
+	sourceAddr    = flag.String("sourceaddr", "", "Set the source address to send packets from, which is useful on machines with multiple interfaces.  "+
+		"For UNIX-domain datagram sockets, specifies the local temporary socket file to create and use so that datagrams can be received.")
+	sourcePort = flag.Uint("port", 0, "the source port gonc should use, subject to privilege restrictions and availability.")
+	timeout    = flag.String("timeout", "0s", "connections which cannot be established or are idle timeout "+
+		"after timeout seconds. Has no effect on the -listen option, i.e. gonc will listen forever for a connection, "+
 		"with or without the -w flag.")
-	scan   = flag.Bool("z", false, "scan for listening daemons, without sending any data to them.")
-	telnet = flag.Bool("t", false, "send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests. "+
+	scan   = flag.Bool("scan", false, "scan for listening daemons, without sending any data to them.")
+	telnet = flag.Bool("telnet", false, "send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests. "+
 		"This makes it possible to script telnet sessions.")
-	verbose       = flag.Bool("v", false, "enable more verbose output.")
-	interval      = flag.String("i", "0s", "Sleep for interval seconds between lines of text sent and received. Also causes a delay time between connections to multiple ports.")
+	verbose       = flag.Bool("verbose", false, "enable more verbose output.")
+	interval      = flag.String("interval", "0s", "Sleep for interval seconds between lines of text sent and received. Also causes a delay time between connections to multiple ports.")
 	ssl           = flag.Bool("ssl", false, "Connect or listen with SSL")
 	sslCert       = flag.String("cert", "", "Specify SSL certificate file (PEM) for listening")
 	sslKey        = flag.String("key", "", "Specify SSL private key (PEM) for listening")
