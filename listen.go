@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -107,27 +106,12 @@ func (n *netcat) handleConn(conn net.Conn) error {
 	if !n.cfg.NoStdin {
 		if n.cfg.Interval > 0 {
 			go func() {
-				scanner := bufio.NewScanner(n.stdin)
-				var writeErr error
-				for scanner.Scan() {
-					_, err := conn.Write(append(scanner.Bytes(), '\n'))
-					if err != nil {
-						writeErr = err
-						break
-					}
-					time.Sleep(n.cfg.Interval)
+				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
+				if err == nil && n.cfg.ExitOnEOF {
+					err = closeWrite(conn)
 				}
 
-				scanErr := scanner.Err()
-				if scanErr != nil {
-					writeErr = scanErr
-				}
-
-				if writeErr == nil && n.cfg.ExitOnEOF {
-					writeErr = closeWrite(conn)
-				}
-
-				writeErrChan <- writeErr
+				writeErrChan <- err
 			}()
 		} else {
 			go func() {
@@ -142,20 +126,7 @@ func (n *netcat) handleConn(conn net.Conn) error {
 
 	var readErr error
 	if n.cfg.Interval > 0 {
-		scanner := bufio.NewScanner(conn)
-		for scanner.Scan() {
-			_, err := n.stdout.Write(append(scanner.Bytes(), '\n'))
-			if err != nil {
-				readErr = err
-				break
-			}
-			time.Sleep(n.cfg.Interval)
-		}
-
-		scanErr := scanner.Err()
-		if scanErr != nil {
-			readErr = scanErr
-		}
+		readErr = scanLinesWithInterval(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout), n.cfg.Interval)
 	} else {
 		_, readErr = io.Copy(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout))
 	}

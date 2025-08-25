@@ -76,7 +76,7 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-func (c *Config) ParseAddress() (string, error) {
+func (c *Config) Address() (string, error) {
 	switch c.NetcatMode {
 	case NetcatModeListen:
 		switch c.Socket {
@@ -99,13 +99,13 @@ func (c *Config) ParseAddress() (string, error) {
 			if c.NoDNS {
 				host, err = parseIp(c.Host)
 				if err != nil {
-					return "", fmt.Errorf("couldn't parse ip: %w", err)
+					return "", fmt.Errorf("failed to parse ip: %w", err)
 				}
 			}
 
 			return net.JoinHostPort(host, strconv.FormatUint(uint64(c.Port), 10)), nil
 		default:
-			return "", fmt.Errorf("couldn't parse address")
+			return "", fmt.Errorf("failed to parse address")
 		}
 	case NetcatModeConnect:
 		var host string
@@ -130,7 +130,7 @@ func (c *Config) ParseAddress() (string, error) {
 
 		return net.JoinHostPort(host, strconv.FormatUint(uint64(c.Port), 10)), nil
 	default:
-		return "", fmt.Errorf("invalid netcat mode: %s", c.NetcatMode)
+		return "", fmt.Errorf("invalid mode: %s", c.NetcatMode)
 	}
 }
 
@@ -182,7 +182,7 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 	ports := strings.SplitN(arg, "-", 2)
 	port, err := strconv.ParseUint(ports[0], 10, 16)
 	if err != nil {
-		return 0, 0, fmt.Errorf("error parsing start port: %w", err)
+		return 0, 0, fmt.Errorf("failed to parse start port: %w", err)
 	}
 
 	start := uint16(port)
@@ -191,7 +191,7 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 	if len(ports) > 1 {
 		endPort, err := strconv.ParseUint(ports[1], 10, 16)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error parsing end port: %w", err)
+			return 0, 0, fmt.Errorf("failed to parse end port: %w", err)
 		}
 		end = uint16(endPort)
 	}

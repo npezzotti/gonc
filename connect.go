@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -46,27 +45,11 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	if !n.cfg.NoStdin {
 		if n.cfg.Interval > 0 {
 			go func() {
-				scanner := bufio.NewScanner(n.stdin)
-				var writeErr error
-				for scanner.Scan() {
-					_, err := conn.Write(append(scanner.Bytes(), '\n'))
-					if err != nil {
-						writeErr = err
-						break
-					}
-					time.Sleep(n.cfg.Interval)
+				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
+				if err == nil && n.cfg.ExitOnEOF {
+					err = closeWrite(conn)
 				}
-
-				scanErr := scanner.Err()
-				if scanErr != nil {
-					writeErr = scanErr
-				}
-
-				if writeErr == nil && n.cfg.ExitOnEOF {
-					writeErr = closeWrite(conn)
-				}
-
-				writeErrChan <- writeErr
+				writeErrChan <- err
 			}()
 		} else {
 			go func() {
@@ -88,20 +71,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 
 	var readErr error
 	if n.cfg.Interval > 0 {
-		scanner := bufio.NewScanner(src)
-		for scanner.Scan() {
-			_, err := n.stdout.Write(append(scanner.Bytes(), '\n'))
-			if err != nil {
-				readErr = err
-				break
-			}
-			time.Sleep(n.cfg.Interval)
-		}
-
-		scanErr := scanner.Err()
-		if scanErr != nil {
-			readErr = scanErr
-		}
+		readErr = scanLinesWithInterval(n.stdout, src, n.cfg.Interval)
 	} else {
 		_, readErr = io.Copy(n.stdout, src)
 	}
@@ -114,20 +84,6 @@ func (n *netcat) connect(network, remoteAddr string) error {
 	}
 
 	return readErr
-}
-
-func closeWrite(conn net.Conn) error {
-	switch c := conn.(type) {
-	case *tls.Conn:
-		if c.ConnectionState().HandshakeComplete {
-			return c.CloseWrite()
-		}
-	default:
-		if writeCloser, ok := c.(WriteCloser); ok {
-			return writeCloser.CloseWrite()
-		}
-	}
-	return fmt.Errorf("unsupported connection type: %T", conn)
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
@@ -210,7 +166,7 @@ func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {
 
 func (n *netcat) portScan(network string) error {
 	for n.cfg.Port <= n.cfg.EndPort {
-		addr, err := n.cfg.ParseAddress()
+		addr, err := n.cfg.Address()
 		if err != nil {
 			return fmt.Errorf("parse address: %w", err)
 		}

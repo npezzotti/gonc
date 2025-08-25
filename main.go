@@ -51,7 +51,7 @@ var (
 	proxyAuth = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 )
 
-func generateConfig() (*Config, error) {
+func parseConfig() (*Config, error) {
 	cfg := NewDefaultConfig()
 
 	if *listen {
@@ -123,14 +123,14 @@ func generateConfig() (*Config, error) {
 		}
 	}
 
-	// SSL configuration
+	// SSL options
 	cfg.UseSSL = *ssl
 	cfg.SSLNoVerify = *sslNoVerify
 	cfg.SSLCert = *sslCert
 	cfg.SSLKey = *sslKey
 	cfg.SSLTrustFile = *sslTrustFile
 
-	// Proxy configuration
+	// Proxy options
 	cfg.ProxyType = ProxyType(*proxyType)
 
 	var addr = *proxyAddr
@@ -169,6 +169,7 @@ func generateConfig() (*Config, error) {
 		return nil, fmt.Errorf("invalid SSL ciphers: %w", err)
 	}
 
+	// Miscellaneous options
 	cfg.SourcePort = uint16(*sourcePort)
 	cfg.SourceHost = *sourceAddr
 	cfg.NoDNS = *noDNS
@@ -206,7 +207,7 @@ func main() {
 
 func run(l *log.Logger) error {
 	flag.Parse()
-	cfg, err := generateConfig()
+	cfg, err := parseConfig()
 	if err != nil {
 		return err
 	}
@@ -219,7 +220,7 @@ func run(l *log.Logger) error {
 	}
 
 	network := cfg.Network()
-	addr, err := cfg.ParseAddress()
+	addr, err := cfg.Address()
 	if err != nil {
 		return err
 	}

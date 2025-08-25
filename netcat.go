@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -43,6 +45,40 @@ func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 		c.Conn.SetDeadline(time.Now().Add(c.timeout))
 	}
 	return c.Conn.Write(b)
+}
+
+func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration) error {
+	scanner := bufio.NewScanner(src)
+	var writeErr error
+	for scanner.Scan() {
+		_, err := dst.Write(append(scanner.Bytes(), '\n'))
+		if err != nil {
+			writeErr = err
+			break
+		}
+		time.Sleep(interval)
+	}
+
+	scanErr := scanner.Err()
+	if scanErr != nil {
+		writeErr = scanErr
+	}
+
+	return writeErr
+}
+
+func closeWrite(conn net.Conn) error {
+	switch c := conn.(type) {
+	case *tls.Conn:
+		if c.ConnectionState().HandshakeComplete {
+			return c.CloseWrite()
+		}
+	default:
+		if writeCloser, ok := c.(WriteCloser); ok {
+			return writeCloser.CloseWrite()
+		}
+	}
+	return fmt.Errorf("unsupported connection type: %T", conn)
 }
 
 func (n *netcat) copyPackets(conn net.PacketConn) error {
