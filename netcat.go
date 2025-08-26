@@ -50,13 +50,19 @@ func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration) error {
 	scanner := bufio.NewScanner(src)
 	var writeErr error
+	firstLine := true
 	for scanner.Scan() {
+		if !firstLine {
+			time.Sleep(interval)
+		} else {
+			firstLine = false
+		}
+
 		_, err := dst.Write(append(scanner.Bytes(), '\n'))
 		if err != nil {
 			writeErr = err
 			break
 		}
-		time.Sleep(interval)
 	}
 
 	scanErr := scanner.Err()
