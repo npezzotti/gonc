@@ -21,32 +21,6 @@ type WriteCloser interface {
 	CloseWrite() error
 }
 
-type idleTimeoutConn struct {
-	net.Conn
-	timeout time.Duration
-}
-
-func newIdleTimeoutConn(conn net.Conn, timeout time.Duration) *idleTimeoutConn {
-	return &idleTimeoutConn{
-		Conn:    conn,
-		timeout: timeout,
-	}
-}
-
-func (c *idleTimeoutConn) Read(b []byte) (int, error) {
-	if c.timeout > 0 {
-		c.Conn.SetDeadline(time.Now().Add(c.timeout))
-	}
-	return c.Conn.Read(b)
-}
-
-func (c *idleTimeoutConn) Write(b []byte) (int, error) {
-	if c.timeout > 0 {
-		c.Conn.SetDeadline(time.Now().Add(c.timeout))
-	}
-	return c.Conn.Write(b)
-}
-
 func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration) error {
 	scanner := bufio.NewScanner(src)
 	var writeErr error
@@ -105,7 +79,7 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 
-		n.log.Printf("Receiving packets from %s", remoteAddr.String())
+		n.log.Verbose("Receiving packets from %s", remoteAddr.String())
 	}
 
 	var writeErrChan = make(chan error, 1)
