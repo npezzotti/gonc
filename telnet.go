@@ -10,11 +10,12 @@ import (
 
 // Telnet command constants
 const (
-	WILL = 251 // WILL
-	WONT = 252 // WON'T
-	DO   = 253 // DO
-	DONT = 254 // DON'T
-	IAC  = 255 // Interpret As Command
+	WILL = 0xfb // WILL
+	WONT = 0xfc // WON'T
+	DO   = 0xfd // DO
+	DONT = 0xfe // DON'T
+	IAC  = 0xff // Interpret As Command
+	ECHO = 0x01 // ECHO
 )
 
 type telnetConn struct {
