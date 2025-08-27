@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -32,6 +33,11 @@ const (
 	IPv4 = iota
 	IPv6
 	IPv4v6
+)
+
+var (
+	ErrInvalidIP   error = errors.New("invalid ip address")
+	ErrInvalidPort error = errors.New("invalid port")
 )
 
 type Config struct {
@@ -128,13 +134,13 @@ func (c *Config) Address() (string, error) {
 			if c.NoDNS {
 				host, err = parseIp(c.Host)
 				if err != nil {
-					return "", fmt.Errorf("failed to parse ip: %w", err)
+					return "", fmt.Errorf("parse ip %s: %w", c.Host, err)
 				}
 			}
 
 			return net.JoinHostPort(host, strconv.FormatUint(uint64(c.Port), 10)), nil
 		default:
-			return "", fmt.Errorf("failed to parse address")
+			return "", fmt.Errorf("invalid socket type: %s", c.Socket)
 		}
 	case NetcatModeConnect:
 		var host string
@@ -150,11 +156,13 @@ func (c *Config) Address() (string, error) {
 			if c.NoDNS {
 				host, err = parseIp(c.Host)
 				if err != nil {
-					return "", err
+					return "", fmt.Errorf("parse ip %s: %w", c.Host, err)
 				}
 			} else {
 				host = c.Host
 			}
+		default:
+			return "", fmt.Errorf("invalid socket type: %s", c.Socket)
 		}
 
 		return net.JoinHostPort(host, strconv.FormatUint(uint64(c.Port), 10)), nil
@@ -165,12 +173,12 @@ func (c *Config) Address() (string, error) {
 
 func parseIp(ip string) (string, error) {
 	if ip == "" {
-		return "", fmt.Errorf("empty ip address")
+		return "", ErrInvalidIP
 	}
 
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
-		return "", fmt.Errorf("invalid ip address: %s", ip)
+		return "", ErrInvalidIP
 	}
 	return parsedIP.String(), nil
 }
@@ -182,7 +190,7 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 	ports := strings.SplitN(arg, "-", 2)
 	port, err := strconv.ParseUint(ports[0], 10, 16)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to parse start port: %w", err)
+		return 0, 0, ErrInvalidPort
 	}
 
 	start := uint16(port)
@@ -191,7 +199,7 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 	if len(ports) > 1 {
 		endPort, err := strconv.ParseUint(ports[1], 10, 16)
 		if err != nil {
-			return 0, 0, fmt.Errorf("failed to parse end port: %w", err)
+			return 0, 0, ErrInvalidPort
 		}
 		end = uint16(endPort)
 	}
