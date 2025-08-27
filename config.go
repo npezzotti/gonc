@@ -76,6 +76,35 @@ func NewDefaultConfig() *Config {
 	}
 }
 
+func (c *Config) Network() string {
+	switch c.Socket {
+	case SocketTCP:
+		switch c.IPType {
+		case IPv4:
+			return "tcp4"
+		case IPv6:
+			return "tcp6"
+		default:
+			return "tcp"
+		}
+	case SocketUDP:
+		switch c.IPType {
+		case IPv4:
+			return "udp4"
+		case IPv6:
+			return "udp6"
+		default:
+			return "udp"
+		}
+	case SocketUnix:
+		return "unix"
+	case SocketUnixgram:
+		return "unixgram"
+	default:
+		return ""
+	}
+}
+
 func (c *Config) Address() (string, error) {
 	switch c.NetcatMode {
 	case NetcatModeListen:
@@ -144,35 +173,6 @@ func parseIp(ip string) (string, error) {
 		return "", fmt.Errorf("invalid ip address: %s", ip)
 	}
 	return parsedIP.String(), nil
-}
-
-func (c *Config) Network() string {
-	switch c.Socket {
-	case SocketTCP:
-		switch c.IPType {
-		case IPv4:
-			return "tcp4"
-		case IPv6:
-			return "tcp6"
-		default:
-			return "tcp"
-		}
-	case SocketUDP:
-		switch c.IPType {
-		case IPv4:
-			return "udp4"
-		case IPv6:
-			return "udp6"
-		default:
-			return "udp"
-		}
-	case SocketUnix:
-		return "unix"
-	case SocketUnixgram:
-		return "unixgram"
-	default:
-		return ""
-	}
 }
 
 // parsePortArg parses a port argument which can be a single port
