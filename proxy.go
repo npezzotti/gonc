@@ -97,7 +97,7 @@ func (n *netcat) dialProxy(network, remoteAddr string) (net.Conn, error) {
 			return nil, fmt.Errorf("parse proxy URL: %w", err)
 		}
 
-		dialer, err := proxy.FromURL(proxyUrl, proxy.Direct)
+		dialer, err := proxy.FromURL(proxyUrl, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create proxy dialer: %w", err)
 		}
