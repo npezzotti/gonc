@@ -1,3 +1,3 @@
-# go-nc
+# gonc
 
-go-nc is a netcat-like utility implemented in Go.
+gonc is a netcat-like utility implemented in Go.
