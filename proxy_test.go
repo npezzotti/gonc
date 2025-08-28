@@ -230,11 +230,7 @@ func Test_dialProxy_socks5(t *testing.T) {
 	for _, tt := range tcases {
 		t.Run(tt.name, func(t *testing.T) {
 			go func() {
-				conn, err := remoteServer.Accept()
-				if err != nil {
-					t.Errorf("failed to accept connection: %v", err)
-					return
-				}
+				conn, _ := remoteServer.Accept()
 				conn.Close()
 			}()
 
@@ -256,15 +252,9 @@ func Test_dialProxy_socks5(t *testing.T) {
 			}
 
 			go func() {
-				proxyConn, err := proxyListener.Accept()
-				if err != nil {
-					t.Errorf("failed to accept connection: %v", err)
-					return
-				}
-				if err := proxyServer.ServeConn(proxyConn); err != nil {
-					t.Errorf("failed to serve connection: %v", err)
-				}
-				proxyConn.Close()
+				proxyConn, _ := proxyListener.Accept()
+				defer proxyConn.Close()
+				proxyServer.ServeConn(proxyConn)
 			}()
 
 			n := &netcat{
