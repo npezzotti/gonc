@@ -46,7 +46,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		if n.cfg.Interval > 0 {
 			go func() {
 				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
-				if err == nil && n.cfg.ExitOnEOF {
+				if err == nil && !n.cfg.NoShutdown {
 					err = closeWrite(conn)
 				}
 				writeErrChan <- err
@@ -54,7 +54,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		} else {
 			go func() {
 				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-				if err == nil && n.cfg.ExitOnEOF {
+				if err == nil && !n.cfg.NoShutdown {
 					err = closeWrite(conn)
 				}
 				writeErrChan <- err

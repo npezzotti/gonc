@@ -24,7 +24,7 @@ var (
 	ipv6_only     = flag.Bool("ipv6", false, "use IPv6 addresses only")
 	nostdin       = flag.Bool("nostdin", false, "do not attempt to read from stdin")
 	keepListening = flag.Bool("keep", false, "when a connection is completed, listen for another one.  Requires -listen.")
-	exitOnEOF     = flag.Bool("shutdown", false, "shutdown the network socket after EOF on the input.")
+	noShutdown    = flag.Bool("no-shutdown", false, "do not shutdown the network socket after EOF on the input.")
 	noDNS         = flag.Bool("no-dns", false, "do not resolve hostnames to IP addresses")
 	sourceAddr    = flag.String("sourceaddr", "", "Set the source address to send packets from, which is useful on machines with multiple interfaces.  "+
 		"For UNIX-domain datagram sockets, specifies the local temporary socket file to create and use so that datagrams can be received.")
@@ -176,7 +176,7 @@ func parseConfig() (*Config, error) {
 	cfg.NoStdin = *nostdin
 	cfg.ScanPorts = *scan
 	cfg.KeepListening = *keepListening
-	cfg.ExitOnEOF = *exitOnEOF
+	cfg.NoShutdown = *noShutdown
 	cfg.Verbose = *verbose
 	cfg.Telnet = *telnet
 

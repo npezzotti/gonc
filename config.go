@@ -51,7 +51,7 @@ type Config struct {
 	NoDNS         bool
 	ScanPorts     bool
 	KeepListening bool
-	ExitOnEOF     bool
+	NoShutdown    bool
 	EndPort       uint16
 	SourcePort    uint16
 	SourceHost    string
