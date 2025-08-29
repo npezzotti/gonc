@@ -47,18 +47,17 @@ func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration)
 	return writeErr
 }
 
-func closeWrite(conn net.Conn) error {
-	switch c := conn.(type) {
+func closeWrite(writeCloser WriteCloser) error {
+	switch c := writeCloser.(type) {
 	case *tls.Conn:
+		// Ensure TLS handshake is complete before closing
 		if c.ConnectionState().HandshakeComplete {
 			return c.CloseWrite()
 		}
+		return fmt.Errorf("cannot CloseWrite on TLS connection before handshake is complete")
 	default:
-		if writeCloser, ok := c.(WriteCloser); ok {
-			return writeCloser.CloseWrite()
-		}
+		return writeCloser.CloseWrite()
 	}
-	return fmt.Errorf("unsupported connection type: %T", conn)
 }
 
 func (n *netcat) copyPackets(conn net.PacketConn) error {
@@ -69,10 +68,12 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		connBuff   = make([]byte, 1024)
 	)
 
-	if n.cfg.NetcatMode == NetcatModeListen && !n.cfg.KeepListening {
+	if n.cfg.NetcatMode == NetcatModeListen {
+		// Listen for incoming packets and set the remote address before starting the writer.
+		// This is necessary for gonc to simulate a peer-to-peer connection when using a connection-less protocol.
 		nb, remoteAddr, err = conn.ReadFrom(connBuff)
 		if err != nil {
-			return fmt.Errorf("read from: %w", err)
+			return err
 		}
 
 		if n.cfg.Timeout > 0 {
@@ -82,69 +83,71 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		n.log.Verbose("Receiving packets from %s", remoteAddr.String())
 	}
 
-	var writeErrChan = make(chan error, 1)
+	var writeErr error
 	go func() {
-		defer conn.Close()
+		defer conn.Close() // unblock read
 
-		var writeErr error
 		stdinBuf := make([]byte, 1024)
 		for {
 			nb, err := n.stdin.Read(stdinBuf)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					writeErr = fmt.Errorf("read stdin: %w", err)
+					writeErr = err
 				}
-				break
-			}
-
-			if n.cfg.NetcatMode == NetcatModeListen {
-				// If in listen mode, write to the remote address
-				if _, err = conn.WriteTo(stdinBuf[:nb], remoteAddr); err != nil {
-					writeErr = fmt.Errorf("write to: %w", err)
-					break
-				}
-			} else {
-				// Otherwise, write to the connection directly
-				if _, err = conn.(net.Conn).Write(stdinBuf[:nb]); err != nil {
-					writeErr = fmt.Errorf("write: %w", err)
-					break
-				}
+				return
 			}
 
 			if n.cfg.Timeout > 0 {
 				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 			}
-		}
 
-		writeErrChan <- writeErr
+			if n.cfg.NetcatMode == NetcatModeListen {
+				// If in listen mode, write to the remote address
+				if _, err = conn.WriteTo(stdinBuf[:nb], remoteAddr); err != nil {
+					writeErr = err
+					return
+				}
+			} else {
+				// Otherwise, write to the connection directly
+				if _, err = conn.(net.Conn).Write(stdinBuf[:nb]); err != nil {
+					writeErr = err
+					return
+				}
+			}
+		}
 	}()
 
+	var readErr error
 	for {
 		if nb > 0 {
 			if _, err := n.stdout.Write(connBuff[:nb]); err != nil {
-				return fmt.Errorf("write stdout: %w", err)
+				readErr = err
+				break
 			}
-		}
-
-		var clientAddr net.Addr
-		nb, clientAddr, err = conn.ReadFrom(connBuff)
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				return fmt.Errorf("read from: %w", err)
-			}
-			break
 		}
 
 		if n.cfg.Timeout > 0 {
 			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
 		}
 
-		if n.cfg.NetcatMode == NetcatModeListen && clientAddr.String() != remoteAddr.String() {
+		var clientAddr net.Addr
+		nb, clientAddr, err = conn.ReadFrom(connBuff)
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				readErr = err
+			}
+			break
+		}
+
+		if n.cfg.NetcatMode == NetcatModeListen && nb > 0 && clientAddr.String() != remoteAddr.String() {
 			// drop packets from other clients
 			nb = 0
 			continue
 		}
 	}
 
-	return <-writeErrChan
+	if writeErr != nil {
+		return writeErr
+	}
+	return readErr
 }
