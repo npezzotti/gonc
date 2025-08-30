@@ -83,9 +83,10 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		n.log.Verbose("Receiving packets from %s", remoteAddr.String())
 	}
 
+	var stdinDone = make(chan struct{})
 	var writeErr error
 	go func() {
-		defer conn.Close() // unblock read
+		defer close(stdinDone)
 
 		stdinBuf := make([]byte, 1024)
 		for {
@@ -118,12 +119,20 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 	}()
 
 	var readErr error
+readLoop:
 	for {
 		if nb > 0 {
 			if _, err := n.stdout.Write(connBuff[:nb]); err != nil {
 				readErr = err
 				break
 			}
+		}
+
+		// Check if stdin is done
+		select {
+		case <-stdinDone:
+			break readLoop
+		default:
 		}
 
 		if n.cfg.Timeout > 0 {
@@ -133,7 +142,7 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		var clientAddr net.Addr
 		nb, clientAddr, err = conn.ReadFrom(connBuff)
 		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
+			if !errors.Is(err, io.EOF) {
 				readErr = err
 			}
 			break
@@ -145,6 +154,8 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 			continue
 		}
 	}
+
+	<-stdinDone // wait for stdin goroutine to finish
 
 	if writeErr != nil {
 		return writeErr
