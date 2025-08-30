@@ -1,39 +1,60 @@
 package main
 
 import (
-	"bytes"
+	"io"
 	"net"
 	"time"
 )
 
-// mockNetConn is a mock implementation of net.Conn for testing purposes.
+// mockNetConn is a mock implementation of the net.Conn and net.PacketConn interfaces for testing.
 type mockNetConn struct {
-	addr              net.Addr
-	readData          []byte
-	readErr           error
-	writeBuf          *bytes.Buffer
-	writeErr          error
-	setDeadlineCalled bool
-	closeCalled       bool
-	localAddrCalled   bool
+	reader        io.Reader
+	writer        io.Writer
+	addr          net.Addr
+	readErr       error
+	writeErr      error
+	setDeadlineCh chan time.Time
+	closed        bool
 }
 
 func (m *mockNetConn) Write(b []byte) (int, error) {
 	if m.writeErr != nil {
 		return 0, m.writeErr
 	}
-	return m.writeBuf.Write(b)
+	return m.writer.Write(b)
 }
 
 func (m *mockNetConn) Read(b []byte) (int, error) {
-	n := copy(b, m.readData)
-	m.readData = m.readData[n:]
-	return n, m.readErr
+	if m.readErr != nil {
+		return 0, m.readErr
+	}
+	return m.reader.Read(b)
 }
 
-func (m *mockNetConn) Close() error                       { m.closeCalled = true; return nil }
-func (m *mockNetConn) LocalAddr() net.Addr                { m.localAddrCalled = true; return nil }
-func (m *mockNetConn) RemoteAddr() net.Addr               { return m.addr }
-func (m *mockNetConn) SetDeadline(t time.Time) error      { m.setDeadlineCalled = true; return nil }
+func (m *mockNetConn) Close() error {
+	m.closed = true
+	m.readErr = net.ErrClosed
+	return nil
+}
+func (m *mockNetConn) LocalAddr() net.Addr  { return m.addr }
+func (m *mockNetConn) RemoteAddr() net.Addr { return m.addr }
+func (m *mockNetConn) SetDeadline(t time.Time) error {
+	if m.setDeadlineCh != nil {
+		m.setDeadlineCh <- t
+	}
+	return nil
+}
 func (m *mockNetConn) SetReadDeadline(t time.Time) error  { return nil }
 func (m *mockNetConn) SetWriteDeadline(t time.Time) error { return nil }
+func (m *mockNetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	if m.readErr != nil {
+		err = m.readErr
+		return
+	}
+	n, err = m.reader.Read(p)
+	addr = m.addr
+	return
+}
+func (m *mockNetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return m.writer.Write(p)
+}
