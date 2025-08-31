@@ -108,7 +108,7 @@ func (n *netcat) handleConn(conn net.Conn) error {
 			go func() {
 				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
 				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn)
+					err = closeWrite(conn.(WriteCloser))
 				}
 
 				writeErrChan <- err
@@ -117,7 +117,7 @@ func (n *netcat) handleConn(conn net.Conn) error {
 			go func() {
 				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
 				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn)
+					err = closeWrite(conn.(WriteCloser))
 				}
 				writeErrChan <- err
 			}()
