@@ -6,6 +6,24 @@ import (
 	"time"
 )
 
+type mockListener struct {
+	addr net.Addr
+}
+
+func (m *mockListener) Accept() (net.Conn, error) {
+	return &mockNetConn{
+		setDeadlineCh: make(chan time.Time, 1),
+	}, nil
+}
+
+func (m *mockListener) Close() error {
+	return nil
+}
+
+func (m *mockListener) Addr() net.Addr {
+	return m.addr
+}
+
 // mockNetConn is a mock implementation of the net.Conn and net.PacketConn interfaces for testing.
 type mockNetConn struct {
 	reader        io.Reader
@@ -33,7 +51,6 @@ func (m *mockNetConn) Read(b []byte) (int, error) {
 
 func (m *mockNetConn) Close() error {
 	m.closed = true
-	m.readErr = net.ErrClosed
 	return nil
 }
 func (m *mockNetConn) LocalAddr() net.Addr  { return m.addr }
