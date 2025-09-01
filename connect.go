@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -41,49 +40,7 @@ func (n *netcat) connect(network, remoteAddr string) error {
 		return n.copyPackets(conn.(net.PacketConn))
 	}
 
-	var writeErrChan = make(chan error)
-	if !n.cfg.NoStdin {
-		if n.cfg.Interval > 0 {
-			go func() {
-				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
-				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn.(WriteCloser))
-				}
-				writeErrChan <- err
-			}()
-		} else {
-			go func() {
-				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn.(WriteCloser))
-				}
-				writeErrChan <- err
-			}()
-		}
-	}
-
-	var src io.Reader
-	if n.cfg.Telnet {
-		src = newTelnetConn(conn, n.cfg.Timeout)
-	} else {
-		src = newIdleTimeoutConn(conn, n.cfg.Timeout)
-	}
-
-	var readErr error
-	if n.cfg.Interval > 0 {
-		readErr = scanLinesWithInterval(n.stdout, src, n.cfg.Interval)
-	} else {
-		_, readErr = io.Copy(n.stdout, src)
-	}
-
-	if !n.cfg.NoStdin {
-		stdinErr := <-writeErrChan
-		if stdinErr != nil {
-			return stdinErr
-		}
-	}
-
-	return readErr
+	return n.handleConn(conn)
 }
 
 func (n *netcat) dial(network, remoteAddr string) (net.Conn, error) {

@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
 	"time"
 )
@@ -91,45 +90,4 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-func (n *netcat) handleConn(conn net.Conn) error {
-	writeErrChan := make(chan error)
-	if !n.cfg.NoStdin {
-		if n.cfg.Interval > 0 {
-			go func() {
-				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
-				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn.(WriteCloser))
-				}
-
-				writeErrChan <- err
-			}()
-		} else {
-			go func() {
-				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
-				if err == nil && !n.cfg.NoShutdown {
-					err = closeWrite(conn.(WriteCloser))
-				}
-				writeErrChan <- err
-			}()
-		}
-	}
-
-	var readErr error
-	if n.cfg.Interval > 0 {
-		readErr = scanLinesWithInterval(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout), n.cfg.Interval)
-	} else {
-		_, readErr = io.Copy(n.stdout, newIdleTimeoutConn(conn, n.cfg.Timeout))
-	}
-
-	if !n.cfg.NoStdin {
-		// Wait for stdin copying to finish
-		writeErr := <-writeErrChan
-		if writeErr != nil {
-			return writeErr
-		}
-	}
-
-	return readErr
 }

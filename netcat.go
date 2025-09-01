@@ -21,6 +21,19 @@ type WriteCloser interface {
 	CloseWrite() error
 }
 
+func closeWrite(writeCloser WriteCloser) error {
+	switch c := writeCloser.(type) {
+	case *tls.Conn:
+		// Ensure TLS handshake is complete before closing
+		if c.ConnectionState().HandshakeComplete {
+			return c.CloseWrite()
+		}
+		return fmt.Errorf("cannot CloseWrite on TLS connection before handshake is complete")
+	default:
+		return writeCloser.CloseWrite()
+	}
+}
+
 func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration) error {
 	scanner := bufio.NewScanner(src)
 	var writeErr error
@@ -47,17 +60,52 @@ func scanLinesWithInterval(dst io.Writer, src io.Reader, interval time.Duration)
 	return writeErr
 }
 
-func closeWrite(writeCloser WriteCloser) error {
-	switch c := writeCloser.(type) {
-	case *tls.Conn:
-		// Ensure TLS handshake is complete before closing
-		if c.ConnectionState().HandshakeComplete {
-			return c.CloseWrite()
+func (n *netcat) handleConn(conn net.Conn) error {
+	writeErrChan := make(chan error)
+	if !n.cfg.NoStdin {
+		if n.cfg.Interval > 0 {
+			go func() {
+				err := scanLinesWithInterval(conn, n.stdin, n.cfg.Interval)
+				if err == nil && !n.cfg.NoShutdown {
+					err = closeWrite(conn.(WriteCloser))
+				}
+
+				writeErrChan <- err
+			}()
+		} else {
+			go func() {
+				_, err := io.Copy(newIdleTimeoutConn(conn, n.cfg.Timeout), n.stdin)
+				if err == nil && !n.cfg.NoShutdown {
+					err = closeWrite(conn.(WriteCloser))
+				}
+				writeErrChan <- err
+			}()
 		}
-		return fmt.Errorf("cannot CloseWrite on TLS connection before handshake is complete")
-	default:
-		return writeCloser.CloseWrite()
 	}
+
+	var src io.Reader
+	if n.cfg.Telnet && n.cfg.NetcatMode == NetcatModeConnect {
+		src = newTelnetConn(conn, n.cfg.Timeout)
+	} else {
+		src = newIdleTimeoutConn(conn, n.cfg.Timeout)
+	}
+
+	var readErr error
+	if n.cfg.Interval > 0 {
+		readErr = scanLinesWithInterval(n.stdout, src, n.cfg.Interval)
+	} else {
+		_, readErr = io.Copy(n.stdout, src)
+	}
+
+	if !n.cfg.NoStdin {
+		// Wait for stdin copying to finish
+		stdinErr := <-writeErrChan
+		if stdinErr != nil {
+			return stdinErr
+		}
+	}
+
+	return readErr
 }
 
 func (n *netcat) copyPackets(conn net.PacketConn) error {
