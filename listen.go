@@ -17,24 +17,10 @@ func (n *netcat) runListen(network, laddr string) error {
 
 	n.log.Verbose("Listening on %s", listener.Addr().String())
 
-	if n.cfg.Socket.IsPacket() {
-		return n.acceptUDP(listener)
-	}
-
-	if n.cfg.KeepListening {
+	if n.cfg.KeepListening && !n.cfg.Socket.IsPacket() {
 		return n.acceptForever(listener)
 	}
 	return n.accept(listener)
-}
-
-func (n *netcat) acceptUDP(listener net.Listener) error {
-	conn, err := n.acceptConn(listener)
-	if err != nil {
-		return fmt.Errorf("acceptConn: %w", err)
-	}
-	defer conn.Close()
-
-	return n.copyPackets(conn.(net.PacketConn))
 }
 
 func (n *netcat) accept(listener net.Listener) error {
@@ -44,12 +30,9 @@ func (n *netcat) accept(listener net.Listener) error {
 	}
 	defer conn.Close()
 
-	addr := conn.RemoteAddr().String()
-	if addr == "" {
-		// Unix socket connections may not have a remote address
-		addr = conn.LocalAddr().String()
+	if n.cfg.Socket.IsPacket() {
+		return n.copyPackets(conn.(net.PacketConn))
 	}
-	n.log.Verbose("Connection received on %s", addr)
 
 	return n.handleConn(conn)
 }
@@ -96,6 +79,15 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 
 	if n.cfg.Timeout > 0 {
 		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+	}
+
+	addr := conn.RemoteAddr()
+	if addr != nil {
+		if addr.String() == "" {
+			// Unix socket connections may not have a remote address
+			addr = conn.LocalAddr()
+		}
+		n.log.Verbose("Connection received on %s", addr.String())
 	}
 
 	return conn, nil
