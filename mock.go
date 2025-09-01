@@ -53,8 +53,14 @@ func (m *mockNetConn) Close() error {
 	m.closed = true
 	return nil
 }
+
+func (m *mockNetConn) CloseWrite() error {
+	return nil
+}
+
 func (m *mockNetConn) LocalAddr() net.Addr  { return m.addr }
 func (m *mockNetConn) RemoteAddr() net.Addr { return m.addr }
+
 func (m *mockNetConn) SetDeadline(t time.Time) error {
 	if m.setDeadlineCh != nil {
 		m.setDeadlineCh <- t
@@ -63,6 +69,7 @@ func (m *mockNetConn) SetDeadline(t time.Time) error {
 }
 func (m *mockNetConn) SetReadDeadline(t time.Time) error  { return nil }
 func (m *mockNetConn) SetWriteDeadline(t time.Time) error { return nil }
+
 func (m *mockNetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	if m.readErr != nil {
 		err = m.readErr
@@ -72,6 +79,7 @@ func (m *mockNetConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	addr = m.addr
 	return
 }
+
 func (m *mockNetConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	return m.writer.Write(p)
 }
