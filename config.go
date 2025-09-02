@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"strconv"
@@ -169,6 +170,154 @@ func (c *Config) Address() (string, error) {
 	default:
 		return "", fmt.Errorf("invalid mode: %s", c.NetcatMode)
 	}
+}
+
+func parseConfig(f *flags) (*Config, error) {
+	cfg := NewDefaultConfig()
+
+	if f.listen {
+		cfg.NetcatMode = NetcatModeListen
+	}
+
+	cfg.Socket = parseSocketFlags(f.udp, f.useUnix)
+
+	if f.ipv4_only {
+		cfg.IPType = IPv4
+	} else if f.ipv6_only {
+		cfg.IPType = IPv6
+	} else {
+		cfg.IPType = IPv4v6
+	}
+
+	var err error
+	cfg.Timeout, err = time.ParseDuration(f.timeout)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
+	}
+
+	switch cfg.NetcatMode {
+	case NetcatModeConnect:
+		switch cfg.Socket {
+		case SocketTCP, SocketUDP:
+			if len(flag.Args()) < 2 {
+				return nil, fmt.Errorf("host and port required")
+			}
+
+			cfg.Host = flag.Arg(0)
+			start, end, err := parsePortArg(flag.Arg(1))
+			if err != nil {
+				return nil, fmt.Errorf("error parsing port: %w", err)
+			}
+
+			cfg.Port = start
+			cfg.EndPort = end
+		case SocketUnix, SocketUnixgram:
+			if len(flag.Args()) < 1 {
+				flag.Usage()
+				return nil, fmt.Errorf("socket required")
+			}
+
+			cfg.Host = flag.Arg(0)
+		}
+	case NetcatModeListen:
+		switch cfg.Socket {
+		case SocketTCP, SocketUDP:
+			if len(flag.Args()) == 1 {
+				port, err := strconv.ParseUint(flag.Arg(0), 10, 16)
+				if err != nil {
+					return nil, fmt.Errorf("couldn't parse port: %w", err)
+				}
+
+				cfg.Port = uint16(port)
+			} else if len(flag.Args()) >= 2 {
+				cfg.Host = flag.Arg(0)
+
+				port, err := strconv.ParseUint(flag.Arg(1), 10, 16)
+				if err != nil {
+					return nil, fmt.Errorf("couldn't parse port: %w", err)
+				}
+
+				cfg.Port = uint16(port)
+			}
+		case SocketUnix, SocketUnixgram:
+			cfg.Host = flag.Arg(0)
+		}
+	}
+
+	// SSL options
+	cfg.UseSSL = f.ssl
+	cfg.SSLNoVerify = f.sslNoVerify
+	cfg.SSLCert = f.sslCert
+	cfg.SSLKey = f.sslKey
+	cfg.SSLTrustFile = f.sslTrustFile
+
+	// Proxy options
+	cfg.ProxyType = ProxyType(f.proxyType)
+
+	var addr = f.proxyAddr
+	proxyAddrParts := strings.Split(addr, ":")
+	if len(proxyAddrParts) < 2 && proxyAddrParts[0] != "" {
+		switch cfg.ProxyType {
+		case ProxyTypeHTTP:
+			addr = fmt.Sprintf("%s:3218", proxyAddrParts[0])
+		case ProxyTypeSOCKS5:
+			addr = fmt.Sprintf("%s:1080", proxyAddrParts[0])
+		}
+	}
+
+	cfg.ProxyAddr = addr
+	cfg.ProxyAuth = f.proxyAuth
+
+	alpn := strings.Split(f.sslAlpn, ",")
+	alpnList := make([]string, 0, len(alpn))
+	for _, proto := range alpn {
+		proto = strings.TrimSpace(proto)
+		if proto != "" {
+			alpnList = append(alpnList, proto)
+		}
+	}
+	if len(alpnList) > 0 {
+		cfg.SSLAlpn = alpnList
+	}
+
+	cfg.ServerName = cfg.Host // Default to the host for server name verification
+	if f.sslServerName != "" {
+		cfg.ServerName = f.sslServerName
+	}
+
+	cfg.SSLCiphers, err = parseCipherSuite(f.sslCiphers)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSL ciphers: %w", err)
+	}
+
+	// Miscellaneous options
+	cfg.SourcePort = uint16(f.sourcePort)
+	cfg.SourceHost = f.sourceAddr
+	cfg.NoDNS = f.noDNS
+	cfg.NoStdin = f.nostdin
+	cfg.ScanPorts = f.scan
+	cfg.KeepListening = f.keepListening
+	cfg.NoShutdown = f.noShutdown
+	cfg.Verbose = f.verbose
+	cfg.Telnet = f.telnet
+
+	cfg.Interval, err = time.ParseDuration(f.interval)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse interval: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func parseSocketFlags(udp, unix bool) Socket {
+	if udp && unix {
+		return SocketUnixgram
+	} else if udp {
+		return SocketUDP
+	} else if unix {
+		return SocketUnix
+	}
+	return SocketTCP
 }
 
 func parseIp(ip string) (string, error) {
