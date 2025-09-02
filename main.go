@@ -16,6 +16,10 @@ func init() {
 }
 
 var (
+	version = "dev"
+)
+
+var (
 	listen = flag.Bool("listen", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
 	udp    = flag.Bool("udp", false, "use UDP instead of the default option of TCP. For UNIX-domain sockets, use a datagram socket instead of a stream socket.  "+
 		"If a UNIX-domain socket is used, a temporary receiving socket is created unless the -source flag is given.")
@@ -48,7 +52,8 @@ var (
 	proxyAddr     = flag.String("proxy", "", "Specify address of host to proxy through.")
 	proxyType     = flag.String("proxy-type", "5", "Use proxy_protocol when talking to the proxy server. "+
 		"Supported protocols are 5 (SOCKS v.5) and connect (HTTPS proxy). If the protocol is not specified, SOCKS version 5 is used.")
-	proxyAuth = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
+	proxyAuth   = flag.String("proxy-auth", "", "Specify proxy authentication credentials (username:password).")
+	versionFlag = flag.Bool("version", false, "Print version and exit.")
 )
 
 func parseConfig() (*Config, error) {
@@ -207,6 +212,12 @@ func main() {
 
 func run(l *log.Logger) error {
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println("Version:", version)
+		return nil
+	}
+
 	cfg, err := parseConfig()
 	if err != nil {
 		return err
