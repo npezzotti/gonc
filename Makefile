@@ -1,5 +1,5 @@
-.PHONY: all clean
-all: run
+.PHONY: all clean build test install
+all: test build
 build:
 	@go build -o ./bin/gonc .
 clean:
@@ -8,6 +8,6 @@ clean:
 	@echo "Clean complete."
 test:
 	@echo "Running tests..."
-	@go test -v ./...
+	@go test -v -timeout 30s ./...
 install:
 	go install ./...

@@ -1,18 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"net"
 	"time"
 )
 
 type mockListener struct {
-	addr net.Addr
+	addr      net.Addr
+	acceptErr error
 }
 
 func (m *mockListener) Accept() (net.Conn, error) {
+	if m.acceptErr != nil {
+		return nil, m.acceptErr
+	}
 	return &mockNetConn{
 		setDeadlineCh: make(chan time.Time, 1),
+		reader:        &bytes.Buffer{},
+		writer:        &bytes.Buffer{},
 	}, nil
 }
 
