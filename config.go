@@ -172,7 +172,7 @@ func (c *Config) Address() (string, error) {
 	}
 }
 
-func parseConfig(f *flags) (*Config, error) {
+func parseConfig(f *flags, args []string) (*Config, error) {
 	cfg := NewDefaultConfig()
 
 	if f.listen {
@@ -199,12 +199,12 @@ func parseConfig(f *flags) (*Config, error) {
 	case NetcatModeConnect:
 		switch cfg.Socket {
 		case SocketTCP, SocketUDP:
-			if len(flag.Args()) < 2 {
+			if len(args) < 2 {
 				return nil, fmt.Errorf("host and port required")
 			}
 
-			cfg.Host = flag.Arg(0)
-			start, end, err := parsePortArg(flag.Arg(1))
+			cfg.Host = args[0]
+			start, end, err := parsePortArg(args[1])
 			if err != nil {
 				return nil, fmt.Errorf("error parsing port: %w", err)
 			}
@@ -212,27 +212,27 @@ func parseConfig(f *flags) (*Config, error) {
 			cfg.Port = start
 			cfg.EndPort = end
 		case SocketUnix, SocketUnixgram:
-			if len(flag.Args()) < 1 {
+			if len(args) < 1 {
 				flag.Usage()
 				return nil, fmt.Errorf("socket required")
 			}
 
-			cfg.Host = flag.Arg(0)
+			cfg.Host = args[0]
 		}
 	case NetcatModeListen:
 		switch cfg.Socket {
 		case SocketTCP, SocketUDP:
-			if len(flag.Args()) == 1 {
-				port, err := strconv.ParseUint(flag.Arg(0), 10, 16)
+			if len(args) == 1 {
+				port, err := strconv.ParseUint(args[0], 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("couldn't parse port: %w", err)
 				}
 
 				cfg.Port = uint16(port)
-			} else if len(flag.Args()) >= 2 {
-				cfg.Host = flag.Arg(0)
+			} else if len(args) >= 2 {
+				cfg.Host = args[0]
 
-				port, err := strconv.ParseUint(flag.Arg(1), 10, 16)
+				port, err := strconv.ParseUint(args[1], 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("couldn't parse port: %w", err)
 				}
@@ -240,7 +240,7 @@ func parseConfig(f *flags) (*Config, error) {
 				cfg.Port = uint16(port)
 			}
 		case SocketUnix, SocketUnixgram:
-			cfg.Host = flag.Arg(0)
+			cfg.Host = args[0]
 		}
 	}
 
@@ -342,6 +342,7 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 		return 0, 0, ErrInvalidPort
 	}
 
+	fmt.Println("Parsed port:", port)
 	start := uint16(port)
 	end := start
 
