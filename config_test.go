@@ -393,12 +393,9 @@ func Test_parseConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "default ip type",
-			flags: &flags{
-				timeout:  "0s",
-				interval: "0s",
-			},
-			args: []string{"localhost", "8080"},
+			name:  "default ip type",
+			flags: &flags{},
+			args:  []string{"localhost", "8080"},
 			expected: &Config{
 				NetcatMode: NetcatModeConnect,
 				Socket:     SocketTCP,
@@ -410,10 +407,8 @@ func Test_parseConfig(t *testing.T) {
 		{
 			name: "listen socket",
 			flags: &flags{
-				listen:   true,
-				useUnix:  true,
-				timeout:  "0s",
-				interval: "0s",
+				listen:  true,
+				useUnix: true,
 			},
 			args: []string{"gonc_test.sock"},
 			expected: &Config{
@@ -441,8 +436,7 @@ func Test_parseConfig(t *testing.T) {
 		{
 			name: "fails to parse timeout",
 			flags: &flags{
-				timeout:  "invalid",
-				interval: "0s",
+				timeout: "invalid",
 			},
 			args:   []string{"localhost", "8080"},
 			errStr: "unable to parse connect timeout",
@@ -450,7 +444,6 @@ func Test_parseConfig(t *testing.T) {
 		{
 			name: "fails to parse interval",
 			flags: &flags{
-				timeout:  "0s",
 				interval: "invalid",
 			},
 			args:   []string{"localhost", "8080"},

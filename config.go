@@ -189,9 +189,11 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 	}
 
 	var err error
-	cfg.Timeout, err = time.ParseDuration(f.timeout)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
+	if f.timeout != "" {
+		cfg.Timeout, err = time.ParseDuration(f.timeout)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse connect timeout: %w", err)
+		}
 	}
 
 	switch cfg.NetcatMode {
@@ -301,9 +303,11 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 	cfg.Verbose = f.verbose
 	cfg.Telnet = f.telnet
 
-	cfg.Interval, err = time.ParseDuration(f.interval)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse interval: %w", err)
+	if f.interval != "" {
+		cfg.Interval, err = time.ParseDuration(f.interval)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse interval: %w", err)
+		}
 	}
 
 	return cfg, nil
