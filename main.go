@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 )
@@ -93,7 +92,7 @@ func run(l *log.Logger) error {
 	fs.Parse(os.Args[1:])
 
 	if f.versionFlag {
-		fmt.Println("Version:", version)
+		l.Println(version)
 		return nil
 	}
 
