@@ -236,6 +236,8 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 				}
 
 				cfg.Port = uint16(port)
+			} else {
+				return nil, fmt.Errorf("port required")
 			}
 		case SocketUnix, SocketUnixgram:
 			cfg.Host = args[0]
