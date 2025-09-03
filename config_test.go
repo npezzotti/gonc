@@ -311,6 +311,14 @@ func Test_parseConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "connect socket fails with no socket",
+			flags: &flags{
+				useUnix: true,
+			},
+			args:   []string{},
+			errStr: "socket required",
+		},
+		{
 			name: "listen host and port",
 			flags: &flags{
 				listen: true,
@@ -332,7 +340,6 @@ func Test_parseConfig(t *testing.T) {
 			expected: &Config{
 				NetcatMode: NetcatModeListen,
 				Socket:     SocketTCP,
-				Host:       "",
 				Port:       8080,
 			},
 		},
@@ -357,54 +364,6 @@ func Test_parseConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "connect socket fails with no socket",
-			flags: &flags{
-				useUnix: true,
-			},
-			args:   []string{},
-			errStr: "socket required",
-		},
-		{
-			name: "ipv4",
-			flags: &flags{
-				ipv4_only: true,
-			},
-			args: []string{"localhost", "8080"},
-			expected: &Config{
-				NetcatMode: NetcatModeConnect,
-				Socket:     SocketTCP,
-				Host:       "localhost",
-				Port:       8080,
-				IPType:     IPv4,
-			},
-		},
-		{
-			name: "ipv6",
-			flags: &flags{
-				ipv6_only: true,
-			},
-			args: []string{"localhost", "8080"},
-			expected: &Config{
-				NetcatMode: NetcatModeConnect,
-				Socket:     SocketTCP,
-				Host:       "localhost",
-				Port:       8080,
-				IPType:     IPv6,
-			},
-		},
-		{
-			name:  "default ip type",
-			flags: &flags{},
-			args:  []string{"localhost", "8080"},
-			expected: &Config{
-				NetcatMode: NetcatModeConnect,
-				Socket:     SocketTCP,
-				Host:       "localhost",
-				Port:       8080,
-				IPType:     IPv4v6,
-			},
-		},
-		{
 			name: "listen socket",
 			flags: &flags{
 				listen:  true,
@@ -418,20 +377,35 @@ func Test_parseConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "ipv4",
+			flags: &flags{
+				ipv4_only: true,
+			},
+			args:     []string{"localhost", "8080"},
+			expected: &Config{IPType: IPv4},
+		},
+		{
+			name: "ipv6",
+			flags: &flags{
+				ipv6_only: true,
+			},
+			args:     []string{"localhost", "8080"},
+			expected: &Config{IPType: IPv6},
+		},
+		{
+			name:     "default ip type",
+			flags:    &flags{},
+			args:     []string{"localhost", "8080"},
+			expected: &Config{IPType: IPv4v6},
+		},
+		{
 			name: "successfully parses interval and timeout",
 			flags: &flags{
 				timeout:  "5s",
 				interval: "1m",
 			},
-			args: []string{"localhost", "8080"},
-			expected: &Config{
-				NetcatMode: NetcatModeConnect,
-				Socket:     SocketTCP,
-				Host:       "localhost",
-				Port:       8080,
-				Timeout:    5 * time.Second,
-				Interval:   1 * time.Minute,
-			},
+			args:     []string{"localhost", "8080"},
+			expected: &Config{Timeout: 5 * time.Second, Interval: 1 * time.Minute},
 		},
 		{
 			name: "fails to parse timeout",
@@ -449,6 +423,42 @@ func Test_parseConfig(t *testing.T) {
 			args:   []string{"localhost", "8080"},
 			errStr: "unable to parse interval",
 		},
+		{
+			name: "default proxy port http",
+			flags: &flags{
+				proxyType: "connect",
+				proxyAddr: "localhost",
+			},
+			args: []string{"localhost", "8080"},
+			expected: &Config{
+				ProxyType: ProxyTypeHTTP,
+				ProxyAddr: "localhost:3218",
+			},
+		},
+		{
+			name: "default proxy port socks5",
+			flags: &flags{
+				proxyType: "5",
+				proxyAddr: "localhost",
+			},
+			args: []string{"localhost", "8080"},
+			expected: &Config{
+				ProxyType: ProxyTypeSOCKS5,
+				ProxyAddr: "localhost:1080",
+			},
+		},
+		{
+			name: "default proxy port socks5",
+			flags: &flags{
+				proxyType: "5",
+				proxyAddr: "localhost",
+			},
+			args: []string{"localhost", "8080"},
+			expected: &Config{
+				ProxyType: ProxyTypeSOCKS5,
+				ProxyAddr: "localhost:1080",
+			},
+		},
 	}
 
 	for _, tc := range tcases {
@@ -464,25 +474,25 @@ func Test_parseConfig(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 			}
-			if result.NetcatMode != tc.expected.NetcatMode {
+			if tc.expected.NetcatMode != "" && result.NetcatMode != tc.expected.NetcatMode {
 				t.Errorf("expected %v, got %v", tc.expected.NetcatMode, result.NetcatMode)
 			}
-			if result.Socket != tc.expected.Socket {
+			if tc.expected.Socket != "" && result.Socket != tc.expected.Socket {
 				t.Errorf("expected %v, got %v", tc.expected.Socket, result.Socket)
 			}
-			if result.Host != tc.expected.Host {
+			if tc.expected.Host != "" && result.Host != tc.expected.Host {
 				t.Errorf("expected %v, got %v", tc.expected.Host, result.Host)
 			}
-			if result.Port != tc.expected.Port {
+			if tc.expected.Port != 0 && result.Port != tc.expected.Port {
 				t.Errorf("expected %v, got %v", tc.expected.Port, result.Port)
 			}
 			if tc.expected.EndPort != 0 && result.EndPort != tc.expected.EndPort {
 				t.Errorf("expected %v, got %v", tc.expected.EndPort, result.EndPort)
 			}
-			if result.Timeout != tc.expected.Timeout {
+			if tc.expected.Timeout != 0 && result.Timeout != tc.expected.Timeout {
 				t.Errorf("expected %v, got %v", tc.expected.Timeout, result.Timeout)
 			}
-			if result.Interval != tc.expected.Interval {
+			if tc.expected.Interval != 0 && result.Interval != tc.expected.Interval {
 				t.Errorf("expected %v, got %v", tc.expected.Interval, result.Interval)
 			}
 			if result.NoStdin != tc.expected.NoStdin {
@@ -505,6 +515,15 @@ func Test_parseConfig(t *testing.T) {
 			}
 			if result.Telnet != tc.expected.Telnet {
 				t.Errorf("expected %v, got %v", tc.expected.Telnet, result.Telnet)
+			}
+			if tc.expected.ProxyAddr != "" && result.ProxyAddr != tc.expected.ProxyAddr {
+				t.Errorf("expected %v, got %v", tc.expected.ProxyAddr, result.ProxyAddr)
+			}
+			if tc.expected.ProxyType != "" && result.ProxyType != tc.expected.ProxyType {
+				t.Errorf("expected %v, got %v", tc.expected.ProxyType, result.ProxyType)
+			}
+			if tc.expected.ProxyAuth != "" && result.ProxyAuth != tc.expected.ProxyAuth {
+				t.Errorf("expected %v, got %v", tc.expected.ProxyAuth, result.ProxyAuth)
 			}
 		})
 	}
