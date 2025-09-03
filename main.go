@@ -47,12 +47,12 @@ type flags struct {
 }
 
 func main() {
-	if err := run(log.Default()); err != nil {
+	if err := run(log.Default(), os.Args[1:]); err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func run(l *log.Logger) error {
+func run(l *log.Logger, args []string) error {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	f := &flags{}
 	fs.BoolVar(&f.listen, "listen", false, "listen for an incoming connection rather than initiate a connection to a remote host.")
@@ -89,7 +89,7 @@ func run(l *log.Logger) error {
 		"Supported protocols are 5 (SOCKS v.5) and connect (HTTPS proxy). If the protocol is not specified, SOCKS version 5 is used.")
 	fs.StringVar(&f.proxyAuth, "proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 	fs.BoolVar(&f.versionFlag, "version", false, "Print version and exit.")
-	fs.Parse(os.Args[1:])
+	fs.Parse(args)
 
 	if f.versionFlag {
 		l.Println(version)
