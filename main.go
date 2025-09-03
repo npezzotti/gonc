@@ -99,6 +99,7 @@ func run(l *log.Logger) error {
 
 	cfg, err := parseConfig(f, flag.Args())
 	if err != nil {
+		fs.Usage()
 		return err
 	}
 
@@ -112,6 +113,7 @@ func run(l *log.Logger) error {
 	network := cfg.Network()
 	addr, err := cfg.Address()
 	if err != nil {
+		fs.Usage()
 		return err
 	}
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"net"
 	"strconv"
@@ -213,7 +212,6 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 			cfg.EndPort = end
 		case SocketUnix, SocketUnixgram:
 			if len(args) < 1 {
-				flag.Usage()
 				return nil, fmt.Errorf("socket required")
 			}
 
