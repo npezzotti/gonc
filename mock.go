@@ -38,6 +38,7 @@ type mockNetConn struct {
 	addr          net.Addr
 	readErr       error
 	writeErr      error
+	closeErr      error
 	setDeadlineCh chan time.Time
 	closed        bool
 }
@@ -57,11 +58,18 @@ func (m *mockNetConn) Read(b []byte) (int, error) {
 }
 
 func (m *mockNetConn) Close() error {
+	if m.closeErr != nil {
+		return m.closeErr
+	}
 	m.closed = true
 	return nil
 }
 
 func (m *mockNetConn) CloseWrite() error {
+	if m.closeErr != nil {
+		return m.closeErr
+	}
+	m.closed = true
 	return nil
 }
 
