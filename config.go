@@ -342,7 +342,6 @@ func parsePortArg(arg string) (uint16, uint16, error) {
 		return 0, 0, ErrInvalidPort
 	}
 
-	fmt.Println("Parsed port:", port)
 	start := uint16(port)
 	end := start
 
