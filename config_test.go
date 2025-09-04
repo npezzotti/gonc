@@ -459,6 +459,18 @@ func Test_parseConfig(t *testing.T) {
 				ProxyAddr: "localhost:1080",
 			},
 		},
+		{
+			name:   "fails to parse ciphers",
+			flags:  &flags{sslCiphers: "invalid"},
+			args:   []string{"localhost", "8080"},
+			errStr: "invalid SSL ciphers",
+		},
+		{
+			name:     "parses alpn",
+			flags:    &flags{sslAlpn: "h2,http/1.1"},
+			args:     []string{"localhost", "8080"},
+			expected: &Config{SSLAlpn: []string{"h2", "http/1.1"}},
+		},
 	}
 
 	for _, tc := range tcases {
