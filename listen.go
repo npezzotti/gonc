@@ -57,6 +57,7 @@ func (n *netcat) createListener(network, laddr string) (net.Listener, error) {
 
 			return tls.Listen(network, laddr, &tls.Config{
 				CipherSuites: n.cfg.SSLCiphers,
+				NextProtos:   n.cfg.SSLAlpn,
 				Certificates: []tls.Certificate{cert},
 			})
 		}
