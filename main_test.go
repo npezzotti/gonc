@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRun_VersionFlag(t *testing.T) {
+func Test_run_versionFlag(t *testing.T) {
 	buf := &bytes.Buffer{}
 	logger := log.New(buf, "", 0)
 
