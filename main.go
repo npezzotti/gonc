@@ -96,7 +96,7 @@ func run(l *log.Logger, args []string) error {
 		return nil
 	}
 
-	cfg, err := parseConfig(f, flag.Args())
+	cfg, err := parseConfig(f, fs.Args())
 	if err != nil {
 		fs.Usage()
 		return err
