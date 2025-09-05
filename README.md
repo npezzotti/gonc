@@ -11,6 +11,7 @@
 - Unix sockets
 - SSL
 - Proxy
+- Port scanning
 - Verbose logging
 - Timeouts
 - Telnet
@@ -40,6 +41,12 @@ make build
 ./gonc localhost 8000
 ```
 
+### Send a message
+
+```sh
+echo "Hello, world!" | ./gonc localhost 8000
+```
+
 ### Transfer a file
 
 On the receiver (server):
@@ -55,19 +62,35 @@ On the sender (client):
 ```
 
 ## Command-line Options
+| Option            | Description                                                                                                    |
+|-------------------|----------------------------------------------------------------------------------------------------------------|
+| `-listen`         | Listen mode (server)                                                                                           |
+| `-udp`            | Use UDP instead of TCP                                                                                         |
+| `-unix`           | Use Unix domain sockets                                                                                        |
+| `-ipv4`           | Use IPv4 addresses only                                                                                        |
+| `-ipv6`           | Use IPv6 addresses only                                                                                        |
+| `-nostdin`        | Do not attempt to read from stdin                                                                              |
+| `-keep`           | When a connection is completed, listen for another one (requires `-listen` and TCP/Unix)                       |
+| `-no-shutdown`    | Do not shutdown the network socket after EOF on the input                                                      |
+| `-no-dns`         | Do not resolve hostnames to IP addresses                                                                       |
+| `-sourceaddr`     | Set the source address to send packets from                                                                    |
+| `-port`           | The source port gonc should use, subject to privilege restrictions and availability                            |
+| `-timeout`        | Connections which cannot be established or are idle timeout after specified seconds                            |
+| `-scan`           | Scan for listening daemons, without sending any data to them                                                   |
+| `-telnet`         | Send RFC 854 DON'T and WON'T responses to RFC 854 DO and WILL requests                                         |
+| `-verbose`        | Enable more verbose output                                                                                     |
+| `-interval`       | Sleep for interval seconds between lines of text sent and received; also functions as delay when scanning ports|
+| `-ssl`            | Use SSL                                                                                                        |
+| `-cert`           | Specify SSL certificate file (PEM) for listening                                                               |
+| `-key`            | Specify SSL private key (PEM) for listening                                                                    |
+| `-no-verify`      | Do not verify trust and domain name of certificates                                                            |
+| `-trustfile`      | PEM file containing trusted SSL certificates                                                                   |
+| `-ciphers`        | Comma-separated list of SSL cipher suites                                                                      |
+| `-servername`     | Request distinct server name (SNI)                                                                             |
+| `-alpn`           | Comma-separated list of ALPN protocols to use                                                                  |
+| `-proxy`          | Specify address of host to proxy through                                                                       |
+| `-proxy-type`     | Proxy protocol to use when communicating to the proxy server (`5` for SOCKS v5, `connect` for HTTPS proxy)     |
+| `-proxy-auth`     | Specify proxy authentication credentials (`username:password`)                                                 |
+| `-version`        | Show version                                                                                                   |
+| `-help`           | Show help message                                                                                              |
 
-| Option              | Description                        |
-|---------------------|------------------------------------|
-| `-listen`           | Listen mode (server)               |
-| `-port <port>`      | Port to listen on or connect to    |
-| `-udp`              | Use UDP instead of TCP             |
-| `-unix`             | Use unix domain sockets            |
-| `-h`                | Show help message                  |
-
-## Example
-
-Send a message:
-
-```sh
-echo "Hello, world!" | ./gonc -p 1234 localhost
-```
