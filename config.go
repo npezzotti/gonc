@@ -222,14 +222,17 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 	case NetcatModeListen:
 		switch cfg.Socket {
 		case SocketTCP, SocketUDP:
-			if len(args) == 1 {
+			if len(args) == 0 {
+				cfg.Host = DefaultIPv4Addr
+				cfg.Port = 0
+			} else if len(args) == 1 {
 				port, err := strconv.ParseUint(args[0], 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("couldn't parse port: %w", err)
 				}
 
 				cfg.Port = uint16(port)
-			} else if len(args) >= 2 {
+			} else {
 				cfg.Host = args[0]
 
 				port, err := strconv.ParseUint(args[1], 10, 16)
@@ -238,8 +241,6 @@ func parseConfig(f *flags, args []string) (*Config, error) {
 				}
 
 				cfg.Port = uint16(port)
-			} else {
-				return nil, fmt.Errorf("port required")
 			}
 		case SocketUnix, SocketUnixgram:
 			cfg.Host = args[0]

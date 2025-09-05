@@ -344,14 +344,6 @@ func Test_parseConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "listen config fails with no port",
-			flags: &flags{
-				listen: true,
-			},
-			args:   []string{},
-			errStr: "port required",
-		},
-		{
 			name: "connect socket",
 			flags: &flags{
 				useUnix: true,
@@ -476,6 +468,9 @@ func Test_parseConfig(t *testing.T) {
 	for _, tc := range tcases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := parseConfig(tc.flags, tc.args)
+			if err == nil && tc.errStr != "" {
+				t.Errorf("expected error %q, got nil", tc.errStr)
+			}
 			if err != nil {
 				if tc.errStr != "" {
 					if !strings.Contains(err.Error(), tc.errStr) {
@@ -483,7 +478,7 @@ func Test_parseConfig(t *testing.T) {
 					}
 					return
 				} else {
-					t.Errorf("unexpected error: %v", err)
+					t.Fatalf("unexpected error: %v", err)
 				}
 			}
 			if tc.expected.NetcatMode != "" && result.NetcatMode != tc.expected.NetcatMode {
