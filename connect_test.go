@@ -216,7 +216,7 @@ func Test_runConnect_ssl(t *testing.T) {
 }
 
 func Test_runConnect_unix(t *testing.T) {
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	t.Cleanup(func() {
 		_ = os.Remove(socket) // Clean up after test
 	})
@@ -337,7 +337,7 @@ func Test_runConnect_udp(t *testing.T) {
 }
 
 func Test_runConnect_unixgram(t *testing.T) {
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	t.Cleanup(func() {
 		_ = os.Remove(socket) // Clean up after test
 	})

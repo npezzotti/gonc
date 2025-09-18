@@ -82,7 +82,7 @@ func Test_netcat_runListen_tcp(t *testing.T) {
 }
 
 func Test_netcat_runListen_unix(t *testing.T) {
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	t.Cleanup(func() {
 		time.Sleep(1000 * time.Millisecond)
 		_ = os.Remove(socket) // Clean up after test
@@ -218,7 +218,7 @@ func Test_netcat_runListen_udp(t *testing.T) {
 }
 
 func Test_netcat_runListen_unixgram(t *testing.T) {
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	t.Cleanup(func() {
 		_ = os.Remove(socket) // Clean up after test
 	})
@@ -483,7 +483,7 @@ func Test_netcat_createListener_unix(t *testing.T) {
 			Socket: SocketUnix,
 		},
 	}
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	defer os.Remove(socket)
 
 	ln, err := nc.createListener("unix", socket)
@@ -535,7 +535,7 @@ func Test_netcat_createListener_unixgram(t *testing.T) {
 			Socket: SocketUnixgram,
 		},
 	}
-	socket := os.TempDir() + "gonc_test.sock"
+	socket := os.TempDir() + "/gonc_test.sock"
 	defer os.Remove(socket)
 
 	ln, err := nc.createListener("unixgram", socket)
