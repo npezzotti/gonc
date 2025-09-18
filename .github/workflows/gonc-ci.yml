@@ -68,7 +68,6 @@ jobs:
       - name: Create GitHub Release and Upload Archives
         uses: softprops/action-gh-release@v1
         with:
-          # This glob pattern now looks for the archive files to upload
           files: |
             ./bin/*.tar.gz
             ./bin/*.zip
