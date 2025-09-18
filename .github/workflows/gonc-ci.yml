@@ -70,6 +70,6 @@ jobs:
         with:
           # This glob pattern now looks for the archive files to upload
           files: |
-            ./releases/*.tar.gz
-            ./releases/*.zip
+            ./bin/*.tar.gz
+            ./bin/*.zip
           generate_release_notes: true
