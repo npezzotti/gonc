@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 )
@@ -89,7 +90,9 @@ func run(l *log.Logger, args []string) error {
 		"Supported protocols are 5 (SOCKS v.5) and connect (HTTPS proxy). If the protocol is not specified, SOCKS version 5 is used.")
 	fs.StringVar(&f.proxyAuth, "proxy-auth", "", "Specify proxy authentication credentials (username:password).")
 	fs.BoolVar(&f.versionFlag, "version", false, "Print version and exit.")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("parse flags: %w", err)
+	}
 
 	if f.versionFlag {
 		l.Println(version)

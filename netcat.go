@@ -125,7 +125,9 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 		}
 
 		if n.cfg.Timeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+			if err := conn.SetDeadline(time.Now().Add(n.cfg.Timeout)); err != nil {
+				return fmt.Errorf("set deadline: %w", err)
+			}
 		}
 
 		n.log.Verbose("Receiving packets from %s", remoteAddr.String())
@@ -147,7 +149,10 @@ func (n *netcat) copyPackets(conn net.PacketConn) error {
 			}
 
 			if n.cfg.Timeout > 0 {
-				conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+				if err := conn.SetDeadline(time.Now().Add(n.cfg.Timeout)); err != nil {
+					writeErr = fmt.Errorf("set deadline: %w", err)
+					return
+				}
 			}
 
 			if n.cfg.NetcatMode == NetcatModeListen {
@@ -184,7 +189,10 @@ readLoop:
 		}
 
 		if n.cfg.Timeout > 0 {
-			conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+			if err := conn.SetDeadline(time.Now().Add(n.cfg.Timeout)); err != nil {
+				readErr = fmt.Errorf("set deadline: %w", err)
+				break
+			}
 		}
 
 		var clientAddr net.Addr

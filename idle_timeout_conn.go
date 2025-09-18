@@ -19,14 +19,18 @@ func newIdleTimeoutConn(conn net.Conn, timeout time.Duration) *idleTimeoutConn {
 
 func (c *idleTimeoutConn) Read(b []byte) (int, error) {
 	if c.timeout > 0 {
-		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+		if err := c.Conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
+			return 0, err
+		}
 	}
 	return c.Conn.Read(b)
 }
 
 func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 	if c.timeout > 0 {
-		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+		if err := c.Conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
+			return 0, err
+		}
 	}
 	return c.Conn.Write(b)
 }

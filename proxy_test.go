@@ -254,7 +254,9 @@ func Test_dialProxy_socks5(t *testing.T) {
 			go func() {
 				proxyConn, _ := proxyListener.Accept()
 				defer proxyConn.Close()
-				proxyServer.ServeConn(proxyConn)
+				if err := proxyServer.ServeConn(proxyConn); err != nil {
+					t.Errorf("socks5 server error: %v", err)
+				}
 			}()
 
 			n := &netcat{

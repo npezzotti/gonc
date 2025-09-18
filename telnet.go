@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -64,7 +65,9 @@ func (c *telnetConn) Read(b []byte) (int, error) {
 
 func (c *telnetConn) Write(b []byte) (int, error) {
 	if c.timeout > 0 {
-		c.Conn.SetDeadline(time.Now().Add(c.timeout))
+		if err := c.Conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
+			return 0, fmt.Errorf("set deadline: %w", err)
+		}
 	}
 	return c.Conn.Write(b)
 }
@@ -82,10 +85,14 @@ func (c *telnetConn) processTelnet(data []byte, conn net.Conn) {
 			switch command {
 			case DO:
 				// respond with WON'T for any DO request
-				conn.Write([]byte{IAC, DONT, option})
+				if _, err := conn.Write([]byte{IAC, DONT, option}); err != nil {
+					continue
+				}
 			case WILL:
 				// respond with DON'T for any WILL request
-				conn.Write([]byte{IAC, WONT, option})
+				if _, err := conn.Write([]byte{IAC, WONT, option}); err != nil {
+					continue
+				}
 			}
 
 			i += 3

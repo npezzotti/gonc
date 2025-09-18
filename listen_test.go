@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -62,7 +63,9 @@ func Test_netcat_runListen_tcp(t *testing.T) {
 	if _, err = conn.Write([]byte("test conn data")); err != nil {
 		t.Errorf("failed to write to connection: %v", err)
 	}
-	conn.(WriteCloser).CloseWrite()
+	if err := conn.(WriteCloser).CloseWrite(); err != nil {
+		t.Errorf("failed to close write: %v", err)
+	}
 
 	select {
 	case err := <-done:
@@ -129,7 +132,9 @@ func Test_netcat_runListen_unix(t *testing.T) {
 	if _, err = conn.Write([]byte("test conn data")); err != nil {
 		t.Errorf("failed to write to connection: %v", err)
 	}
-	conn.(WriteCloser).CloseWrite()
+	if err := conn.(WriteCloser).CloseWrite(); err != nil {
+		t.Errorf("failed to close write: %v", err)
+	}
 
 	select {
 	case err := <-done:
@@ -180,17 +185,22 @@ func Test_netcat_runListen_udp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to listener: %v", err)
 	}
-	conn.Write([]byte("test conn data"))
+	if _, err := conn.Write([]byte("test conn data")); err != nil {
+		t.Errorf("failed to write to connection: %v", err)
+	}
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		t.Errorf("failed to read from connection: %v", err)
 	}
 	if string(buf[:n]) != "test stdin data" {
 		t.Errorf("expected buffer to be %q, got %q", "test stdin data", string(buf[:]))
 	}
 	time.Sleep(100 * time.Millisecond)
-	conn.Write([]byte{}) // Trigger EOF
+	// Send empty packet to signal EOF
+	if _, err := conn.Write([]byte{}); err != nil {
+		t.Errorf("failed to write to connection: %v", err)
+	}
 	conn.Close()
 
 	select {
@@ -256,7 +266,9 @@ func Test_netcat_runListen_unixgram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to listener: %v", err)
 	}
-	conn.Write([]byte("test conn data"))
+	if _, err := conn.Write([]byte("test conn data")); err != nil {
+		t.Errorf("failed to write to connection: %v", err)
+	}
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil && err != io.EOF {
@@ -266,7 +278,9 @@ func Test_netcat_runListen_unixgram(t *testing.T) {
 		t.Errorf("expected buffer to be %q, got %q", "test stdin data", string(buf[:]))
 	}
 	time.Sleep(100 * time.Millisecond)
-	conn.Write([]byte{}) // Trigger EOF
+	if _, err := conn.Write([]byte{}); err != nil {
+		t.Errorf("failed to write to connection: %v", err)
+	}
 	conn.Close()
 
 	select {
@@ -368,7 +382,9 @@ func Test_netcat_runListen_ssl(t *testing.T) {
 			if _, err = conn.Write([]byte("test conn data")); err != nil {
 				t.Errorf("failed to write to connection: %v", err)
 			}
-			conn.CloseWrite()
+			if err := conn.CloseWrite(); err != nil {
+				t.Errorf("failed to close write: %v", err)
+			}
 
 			select {
 			case err := <-done:

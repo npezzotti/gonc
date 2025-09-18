@@ -78,7 +78,9 @@ func (n *netcat) acceptConn(listener net.Listener) (net.Conn, error) {
 	}
 
 	if n.cfg.Timeout > 0 {
-		conn.SetDeadline(time.Now().Add(n.cfg.Timeout))
+		if err := conn.SetDeadline(time.Now().Add(n.cfg.Timeout)); err != nil {
+			return nil, fmt.Errorf("set deadline: %w", err)
+		}
 	}
 
 	addr := conn.RemoteAddr()

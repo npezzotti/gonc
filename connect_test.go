@@ -37,7 +37,10 @@ func Test_runConnect_tcp(t *testing.T) {
 		}
 		defer conn.Close()
 
-		conn.Write([]byte("test conn data"))
+		if _, err := conn.Write([]byte("test conn data")); err != nil {
+			listenerErr = err
+			return
+		}
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		if err != nil {
@@ -143,7 +146,10 @@ func Test_runConnect_ssl(t *testing.T) {
 					return
 				}
 
-				conn.Write([]byte("test conn data"))
+				if _, err := conn.Write([]byte("test conn data")); err != nil {
+					listenerErr = err
+					return
+				}
 				buf := make([]byte, 1024)
 				n, err := conn.Read(buf)
 				if err != nil {
@@ -235,7 +241,10 @@ func Test_runConnect_unix(t *testing.T) {
 		}
 		defer conn.Close()
 
-		conn.Write([]byte("test conn data"))
+		if _, err := conn.Write([]byte("test conn data")); err != nil {
+			listenerErr = err
+			return
+		}
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		if err != nil {
