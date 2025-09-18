@@ -1,6 +1,6 @@
 BINARY_DIR    := ./bin
 BINARY_NAME   := gonc
-VERSION       := dev
+VERSION       := ${VERSION}
 LDFLAGS       := -ldflags="-X main.version=$(VERSION) -w -s"
 
 .PHONY: all tidy fmt test install build release clean
