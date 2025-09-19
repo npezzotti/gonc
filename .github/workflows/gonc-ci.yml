@@ -63,7 +63,6 @@ jobs:
       - name: Install dependencies
         run: make tidy
 
-
       - name: Generate Changelog
         run: |
           GIT_CHGLOG_VERSION=0.15.4
@@ -80,7 +79,7 @@ jobs:
           git commit -m "chore: update changelog"
           git push origin HEAD:${{ github.ref_name }}
 
-      - name: Build binaries
+      - name: Build Binaries
         run: VERSION=${{ github.ref_name }} make release
 
       - name: Create GitHub Release and Upload Archives
