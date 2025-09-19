@@ -54,6 +54,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -68,16 +70,8 @@ jobs:
           GIT_CHGLOG_VERSION=0.15.4
           curl -o git-chglog.tar.gz -L "https://github.com/git-chglog/git-chglog/releases/download/v${GIT_CHGLOG_VERSION}/git-chglog_${GIT_CHGLOG_VERSION}_linux_amd64.tar.gz"
           tar -xzf git-chglog.tar.gz
-          ./git-chglog -o CHANGELOG.md
+          ./git-chglog -o RELEASE_CHANGELOG.md $(git describe --tags $(git rev-list --tags --max-count=1))
           rm git-chglog
-
-      - name: Commit Changelog
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add CHANGELOG.md
-          git commit -m "chore: update changelog"
-          git push origin HEAD:main
 
       - name: Build Binaries
         run: VERSION=${{ github.ref_name }} make release
@@ -89,4 +83,4 @@ jobs:
             ./bin/*.tar.gz
             ./bin/*.zip
           generate_release_notes: true
-          body: See CHANGELOG.md
+          body_path: RELEASE_CHANGELOG.md
