@@ -69,8 +69,8 @@ jobs:
       - name: Generate Changelog
         run: |
           GIT_CHGLOG_VERSION=0.15.4
-          curl -o git-chglog -L "https://github.com/git-chglog/git-chglog/releases/download/${GIT_CHGLOG_VERSION}/git-chglog_linux_amd64"
-          chmod +x git-chglog
+          curl -o git-chglog.tar.gz -L "https://github.com/git-chglog/git-chglog/releases/download/v${GIT_CHGLOG_VERSION}/git-chglog_${GIT_CHGLOG_VERSION}_linux_amd64.tar.gz"
+          tar -xzf git-chglog.tar.gz
           ./git-chglog -o ${{ github.workspace }}-CHANGELOG.md
           rm git-chglog
 
