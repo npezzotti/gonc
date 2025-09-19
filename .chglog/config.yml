@@ -1,0 +1,16 @@
+style: github
+template: CHANGELOG.tpl.md
+info:
+  title: CHANGELOG
+  repository_url: https://github.com/npezzotti/gonc
+options:
+  commits:
+  commit_groups:
+  header:
+    pattern: "^(\\w*)\\:\\s(.*)$"
+    pattern_maps:
+      - Type
+      - Subject
+  notes:
+    keywords:
+      - BREAKING CHANGE
