@@ -66,15 +66,6 @@ jobs:
       - name: Build binaries
         run: VERSION=${{ github.ref_name }} make release
 
-      - name: Create GitHub Release and Upload Archives
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ./bin/*.tar.gz
-            ./bin/*.zip
-          generate_release_notes: true
-          body: See ${{ github.workspace }}/CHANGELOG.md
-
       - name: Generate Changelog
         run: |
           GIT_CHGLOG_VERSION=0.15.4
@@ -87,6 +78,16 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout ${{ github.ref_name }}
           git add CHANGELOG.md
           git commit -m "chore: update changelog"
           git push
+
+      - name: Create GitHub Release and Upload Archives
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./bin/*.tar.gz
+            ./bin/*.zip
+          generate_release_notes: true
+          body: See CHANGELOG.md
